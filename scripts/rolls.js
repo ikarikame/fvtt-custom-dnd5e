@@ -92,7 +92,7 @@ function registerHooks() {
       rollMode = CONFIG.DND5E?.abilities[config.ability]?.rollMode;
     }
 
-    if ( !roll ) return;
+    if ( !roll || game.user.isGM ) return;
 
     const dieParts = getDieParts(roll.die);
     if ( roll.die !== "1d20" && dieParts ) {
