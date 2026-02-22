@@ -1,4 +1,11 @@
 import { MODULE } from "../constants.js";
+import {
+  clampAttackCriticalLowerBound,
+  getActiveD20Results,
+  is2d10DieFormula,
+  isEqualDiceCriticalRoll,
+  isWindowCriticalRoll
+} from "../critical-rules.js";
 import { isCustomRoll } from "../rolls.js";
 
 /**
@@ -10,6 +17,7 @@ export function patchD20Roll() {
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.fromConfig", fromConfigPatch, "OVERRIDE");
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.prototype.configureModifiers", configureModifiersPatch, "WRAPPER");
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.prototype.validD20Roll", validD20RollPatch, "OVERRIDE");
+  patchIsCriticalGetter();
 }
 
 /* -------------------------------------------- */
@@ -75,7 +83,7 @@ function getAdvantageMode(options) {
  * @returns {boolean} Whether the term matches.
  */
 function is2d10Formula(formula) {
-  return /^\s*2d10\b/i.test(formula ?? "");
+  return is2d10DieFormula(formula);
 }
 
 /* -------------------------------------------- */
@@ -104,4 +112,124 @@ function apply2d10AdvantageHouseRule(roll) {
   roll.terms.push(new foundry.dice.terms.OperatorTerm({ operator: sign }));
   roll.terms.push(...(Array.isArray(bonusTerms) ? bonusTerms : (bonusTerms?.terms ?? [])));
   roll.resetFormula();
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Patch D20Roll.isCritical to support alternative 2d10 critical rules.
+ */
+function patchIsCriticalGetter() {
+  const proto = CONFIG.Dice.D20Roll.prototype;
+  if ( proto.__customDnd5eIsCriticalPatched ) return;
+
+  const descriptor = getPropertyDescriptor(proto, "isCritical");
+  const originalGetter = descriptor?.get;
+  const originalValue = descriptor?.value;
+
+  if ( typeof originalGetter !== "function" && typeof originalValue !== "function" ) return;
+
+  if ( typeof originalGetter === "function" ) {
+    Object.defineProperty(proto, "isCritical", {
+      configurable: true,
+      enumerable: descriptor.enumerable ?? false,
+      get() {
+        if ( usesAlternative2d10CriticalRule(this) ) {
+          return isAlternative2d10Critical(this);
+        }
+        return originalGetter.call(this);
+      }
+    });
+  } else {
+    Object.defineProperty(proto, "isCritical", {
+      configurable: true,
+      enumerable: descriptor.enumerable ?? false,
+      writable: true,
+      value: function(...args) {
+        if ( usesAlternative2d10CriticalRule(this) ) {
+          return isAlternative2d10Critical(this);
+        }
+        return originalValue.call(this, ...args);
+      }
+    });
+  }
+
+  Object.defineProperty(proto, "__customDnd5eIsCriticalPatched", {
+    configurable: true,
+    enumerable: false,
+    value: true,
+    writable: false
+  });
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get a property descriptor from an object or its prototype chain.
+ * @param {object} object The object to inspect
+ * @param {string} key The property key
+ * @returns {PropertyDescriptor|null} The descriptor
+ */
+function getPropertyDescriptor(object, key) {
+  let current = object;
+  while ( current ) {
+    const descriptor = Object.getOwnPropertyDescriptor(current, key);
+    if ( descriptor ) return descriptor;
+    current = Object.getPrototypeOf(current);
+  }
+  return null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Check whether the active 2d10 results are equal.
+ * @param {CONFIG.Dice.D20Roll} roll The roll instance
+ * @returns {boolean} Whether the active 2d10 results are equal
+ */
+function hasEqual2d10Results(roll) {
+  return isEqualDiceCriticalRoll(roll);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Check whether the roll uses the equal-dice critical rule for a 2d10 custom die.
+ * @param {CONFIG.Dice.D20Roll} roll The roll instance
+ * @returns {boolean} Whether the rule applies
+ */
+function usesAlternative2d10CriticalRule(roll) {
+  const rule = roll?.options?.customDnd5eCriticalRule;
+  return ["equalDice", "window"].includes(rule) && is2d10Formula(roll?.options?.customDie);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Check whether the roll is a critical using an alternative 2d10 rule.
+ * @param {CONFIG.Dice.D20Roll} roll The roll instance
+ * @returns {boolean} Whether the roll is critical
+ */
+function isAlternative2d10Critical(roll) {
+  const rule = roll?.options?.customDnd5eCriticalRule;
+  if ( rule === "equalDice" ) return hasEqual2d10Results(roll);
+  if ( rule === "window" ) return meets2d10CriticalWindow(roll);
+  return false;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Check whether the 2d10 total meets the configured critical window.
+ * @param {CONFIG.Dice.D20Roll} roll The roll instance
+ * @returns {boolean} Whether the total is in the critical window
+ */
+function meets2d10CriticalWindow(roll) {
+  const activeResults = getActiveD20Results(roll);
+  if ( activeResults.length !== 2 ) return false;
+  // Window crits in this patch remain 2d10-only; generic window handling for chat/UI lives in scripts/rolls.js.
+  if ( !is2d10DieFormula(roll?.options?.customDie) ) return false;
+  const threshold = clampAttackCriticalLowerBound(roll?.options?.customDnd5eCriticalLowerBound);
+  if ( roll?.options ) roll.options.customDnd5eCriticalLowerBound = threshold;
+  return isWindowCriticalRoll(roll);
 }
