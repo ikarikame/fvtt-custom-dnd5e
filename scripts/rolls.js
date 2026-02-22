@@ -1,4 +1,5 @@
 import { CONSTANTS } from "./constants.js";
+import { clampAttackCriticalLowerBound, isEqualDiceCriticalRoll, isWindowCriticalRoll } from "./critical-rules.js";
 import { c5eLoadTemplates, getDieParts, getSetting, registerMenu, registerSetting } from "./utils.js";
 import { RollsForm } from "./forms/rolls-form.js";
 
@@ -43,7 +44,7 @@ function registerSettings() {
       type: Object,
       default: {
         ability: { die: "1d20", rollMode: "default" },
-        attack: { die: "1d20", rollMode: "default" },
+        attack: getDefaultAttackRollSettings(),
         concentration: { die: "1d20", rollMode: "default" },
         initiative: { die: "1d20", rollMode: "default" },
         savingThrow: { die: "1d20", rollMode: "default" },
@@ -67,11 +68,14 @@ function registerHooks() {
     let roll = null;
     let rollMode = null;
 
+    let isAttackRoll = false;
+
     if ( hookNames.includes("concentration") ) {
       roll = rolls.concentration;
     } else if ( hookNames.includes("initiativeDialog") ) {
       roll = rolls.initiative;
     } else if ( hookNames.includes("attack") ) {
+      isAttackRoll = true;
       const weaponType = config?.subject?.item?.system?.type?.value;
       roll = (rolls.weaponTypes?.[weaponType]?.die)
         ? rolls.weaponTypes[weaponType]
@@ -101,6 +105,11 @@ function registerHooks() {
       config.rolls[0].options.criticalFailure = dieParts.number;
     }
 
+    // Apply attack critical rules after default critical thresholds are assigned so custom windows are not overwritten.
+    if ( isAttackRoll ) {
+      applyAttackCriticalRule(config.rolls[0].options, roll, dieParts);
+    }
+
     const rollModes = ["publicroll", "gmroll", "blindroll", "selfroll"];
     if ( rollModes.includes(rollMode) ) {
       message.rollMode = rollMode;
@@ -108,6 +117,126 @@ function registerHooks() {
       message.rollMode = roll.rollMode;
     }
   });
+
+  Hooks.on("renderChatMessage", highlightAlternativeCriticalChat);
+  Hooks.on("renderChatMessageHTML", highlightAlternativeCriticalChat);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get default attack roll settings.
+ * @returns {object} The default attack roll settings
+ */
+function getDefaultAttackRollSettings() {
+  return {
+    die: "1d20",
+    rollMode: "default",
+    criticalRule: "normal",
+    criticalLowerBound: 19
+  };
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Apply custom critical rules for attack rolls.
+ * @param {object} options The roll options
+ * @param {object} rollSettings The roll settings
+ * @param {object|null} dieParts Parsed die parts
+ */
+function applyAttackCriticalRule(options, rollSettings, dieParts) {
+  const criticalRule = rollSettings?.criticalRule ?? "normal";
+  if ( criticalRule === "normal" ) return;
+
+  const criticalLowerBound = Number.parseInt(rollSettings?.criticalLowerBound, 10);
+  const threshold = clampAttackCriticalLowerBound(criticalLowerBound);
+
+  options.customDnd5eCriticalRule = criticalRule;
+  options.customDnd5eCriticalLowerBound = threshold;
+
+  if ( criticalRule === "window" ) {
+    options.criticalSuccess = threshold;
+    return;
+  }
+
+  // Equal-dice crits only make sense for 2d10.
+  if ( criticalRule === "equalDice" && !(dieParts?.number === 2 && dieParts?.faces === 10) ) {
+    delete options.customDnd5eCriticalRule;
+    delete options.customDnd5eCriticalLowerBound;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Highlight attack rolls in chat when using alternative 2d10 critical rules.
+ * @param {ChatMessage} message The chat message
+ * @param {HTMLElement|jQuery} html The rendered HTML
+ */
+function highlightAlternativeCriticalChat(message, html) {
+  const rolls = message?.rolls ?? [];
+  if ( !rolls.length ) return;
+
+  const criticalRollIndices = [];
+  for ( const [index, roll] of rolls.entries() ) {
+    if ( !isAlternativeCriticalRoll(roll) ) continue;
+    criticalRollIndices.push(index);
+  }
+
+  if ( !criticalRollIndices.length ) return;
+
+  const root = html?.[0] ?? html;
+  if ( !root?.querySelectorAll ) return;
+
+  const totals = Array.from(root.querySelectorAll(".dice-roll .dice-total"));
+  for ( const rollIndex of criticalRollIndices ) {
+    const total = totals[rollIndex];
+    if ( !total ) continue;
+    total.classList.add("success", "critical");
+    total.classList.remove("failure", "fumble");
+    injectCriticalIcons(total);
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether a roll qualifies as an alternative 2d10 critical.
+ * @param {object} roll The roll
+ * @returns {boolean} Whether the roll is an alternative critical
+ */
+function isAlternativeCriticalRoll(roll) {
+  const rule = roll?.options?.customDnd5eCriticalRule;
+  if ( !["equalDice", "window"].includes(rule) ) return false;
+
+  if ( rule === "equalDice" ) {
+    return isEqualDiceCriticalRoll(roll);
+  }
+
+  return isWindowCriticalRoll(roll);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Inject critical icons into a chat roll total if they are missing.
+ * @param {HTMLElement} total The dice total element
+ */
+function injectCriticalIcons(total) {
+  if ( total.querySelector(".icons, .fa-check-double, .fa-check") ) return;
+
+  const icons = document.createElement("span");
+  icons.classList.add("icons", `${CONSTANTS.ROLLS.ID}-critical-icons`);
+
+  const first = document.createElement("i");
+  first.classList.add("fas", "fa-check");
+
+  const second = document.createElement("i");
+  second.classList.add("fas", "fa-check");
+
+  icons.append(first, second);
+  total.append(icons);
 }
 
 /* -------------------------------------------- */
