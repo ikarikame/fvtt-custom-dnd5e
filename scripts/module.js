@@ -283,5 +283,5 @@ Hooks.on("ready", async () => {
   setWeaponProficiencies(getSetting(CONSTANTS.WEAPON_PROFICIENCIES.SETTING.CONFIG.KEY));
   setMaxLevel(getSetting(CONSTANTS.MAX_LEVEL.SETTING.KEY));
 
-  migrate();
+  await migrate();
 });
