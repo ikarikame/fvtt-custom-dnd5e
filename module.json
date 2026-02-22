@@ -3,7 +3,7 @@
   "title": "Custom D&D 5e",
   "description": "A Foundry VTT utility to customise the D&D 5e system",
   "version": "This is auto replaced",
-  "library": "false",
+  "library": false,
   "socket": true,
   "compatibility": {
     "minimum": 13.342,
