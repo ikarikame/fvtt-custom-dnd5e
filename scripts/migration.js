@@ -31,7 +31,7 @@ function registerSettings() {
 /**
  * Run migrations between module versions.
  */
-export function migrate() {
+export async function migrate() {
   if ( !game.user.isGM ) return;
 
   const moduleVersion = game.modules.get(MODULE.ID).version;
@@ -40,13 +40,25 @@ export function migrate() {
   if ( moduleVersion === migrationVersion ) return;
 
   let isSuccess = true;
-  isSuccess = (!migrationVersion || foundry.utils.isNewerVersion("1.3.4", migrationVersion)) ? migrateRollMode() : true;
-  isSuccess = (!migrationVersion || foundry.utils.isNewerVersion("2.2.4", migrationVersion)) ? migrateConditions() : true;
-  isSuccess = (!migrationVersion || foundry.utils.isNewerVersion("2.3.0", migrationVersion)) ? migrateAwardInspirationRollType() : true;
-  isSuccess = (!migrationVersion || foundry.utils.isNewerVersion("3.0.0", migrationVersion)) ? migrateRerollInitiative() : true;
+
+  if ( !migrationVersion || foundry.utils.isNewerVersion("1.3.4", migrationVersion) ) {
+    isSuccess = isSuccess && await migrateRollMode();
+  }
+
+  if ( isSuccess && (!migrationVersion || foundry.utils.isNewerVersion("2.2.4", migrationVersion)) ) {
+    isSuccess = isSuccess && await migrateConditions();
+  }
+
+  if ( isSuccess && (!migrationVersion || foundry.utils.isNewerVersion("2.3.0", migrationVersion)) ) {
+    isSuccess = isSuccess && await migrateAwardInspirationRollType();
+  }
+
+  if ( isSuccess && (!migrationVersion || foundry.utils.isNewerVersion("3.0.0", migrationVersion)) ) {
+    isSuccess = isSuccess && await migrateRerollInitiative();
+  }
 
   if ( isSuccess ) {
-    setSetting(constants.VERSION.SETTING.KEY, moduleVersion);
+    await setSetting(constants.VERSION.SETTING.KEY, moduleVersion);
   }
 }
 
