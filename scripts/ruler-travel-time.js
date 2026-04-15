@@ -124,9 +124,9 @@ function getWaypointLabelContextPatch(wrapped, waypoint, state) {
     }
   }
 
-  const baseFpm = getTokenSpeed(token);
+  const travelRate = getTokenTravelRate(token);
 
-  if ( baseFpm ) {
+  if ( travelRate ) {
     const action = token.document?.movementAction || "walk";
     const actionConfig = CONFIG.Token.movement.actions[action];
     const label = game.i18n.localize(actionConfig?.label);
@@ -134,7 +134,10 @@ function getWaypointLabelContextPatch(wrapped, waypoint, state) {
       label,
       paces: PACE_MULTIPLIERS.map((pace, i) => ({
         icon: PACE[i].icon,
-        time: formatTime(distanceFeet / (baseFpm * pace.multiplier))
+        time: formatTime(
+          distanceFeet / (travelRate.feetPerMinute * pace.multiplier),
+          travelRate.dayMinutes
+        )
       }))
     };
   } else {
@@ -163,16 +166,37 @@ function onHoverToken(token, hovered) {
 /* -------------------------------------------- */
 
 /**
- * Get the hovered token's movement speed in feet per minute.
+ * Get the hovered token's travel rate in feet per minute.
  * @param {Token} token The token
- * @returns {number|null} The speed in fpm, or null if unavailable
+ * @returns {{feetPerMinute: number, dayMinutes: number}|null} Travel rate data
  */
-function getTokenSpeed(token) {
+function getTokenTravelRate(token) {
+  const actor = token?.actor;
+  if ( actor?.system?.isGroup || actor?.type === "group" ) {
+    return getGroupTravelRate(token);
+  }
+
+  return getTokenMovementRate(token);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get a creature token's movement speed in feet per minute.
+ * @param {Token} token The token
+ * @returns {{feetPerMinute: number, dayMinutes: number}|null} Travel rate data
+ */
+function getTokenMovementRate(token) {
   const actor = token?.actor;
   const movement = actor?.system?.attributes?.movement;
   if ( !movement ) return null;
   const action = token.document?.movementAction || "walk";
-  if ( ["blink", "displace"].includes(action) ) return null;
+  if ( ["blink", "displace"].includes(action) ) {
+    return {
+      feetPerMinute: Number.POSITIVE_INFINITY,
+      dayMinutes: 480
+    };
+  }
 
   const speedType = ACTION_SPEED_MAP[action] || "walk";
   let speed = movement[speedType] || movement.walk || 0;
@@ -183,7 +207,61 @@ function getTokenSpeed(token) {
   }
 
   if ( speed <= 0 ) return null;
-  return speed * 10;
+  return {
+    feetPerMinute: speed * 10,
+    dayMinutes: 480
+  };
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get a group token's travel speed in feet per minute.
+ * @param {Token} token The token
+ * @returns {{feetPerMinute: number, dayMinutes: number}|null} Travel rate data
+ */
+function getGroupTravelRate(token) {
+  const travel = token?.actor?.system?.attributes?.travel;
+  if ( !travel?.speeds ) return null;
+
+  const action = token.document?.movementAction || "walk";
+  const travelType = getTravelType(action);
+  const speed = travel.speeds[travelType] || travel.speeds.land || 0;
+  if ( speed <= 0 ) return null;
+
+  const feetPerMinute = convertTravelSpeedToFeetPerMinute(speed, travel.units);
+  if ( feetPerMinute <= 0 ) return null;
+
+  return {
+    feetPerMinute,
+    dayMinutes: Math.max(1, Number(travel.time) || 8) * 60
+  };
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Map a token movement action to a group travel type.
+ * @param {string} action The movement action
+ * @returns {"land"|"water"|"air"} The travel type
+ */
+function getTravelType(action) {
+  if ( action === "swim" ) return "water";
+  if ( action === "fly" ) return "air";
+  return "land";
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert travel speed units to feet per minute.
+ * @param {number} speed The travel speed
+ * @param {string} units The travel speed units
+ * @returns {number}
+ */
+function convertTravelSpeedToFeetPerMinute(speed, units) {
+  if ( units === "kph" ) return speed * (3280.839895 / 60);
+  return speed * (5280 / 60);
 }
 
 /* -------------------------------------------- */
@@ -212,18 +290,19 @@ function isMiles(units) {
 
 /**
  * Format a time value in minutes to a human-readable string.
- * Uses 8-hour travel days per D&D 5e rules.
+ * Uses 8-hour travel days per D&D 5e rules by default.
  * @param {number} totalMinutes The total time in minutes
+ * @param {number} [dayMinutes=480] The number of travel minutes in a day
  * @returns {string} The formatted time string
  */
-function formatTime(totalMinutes) {
+function formatTime(totalMinutes, dayMinutes = 480) {
   if ( totalMinutes < 1 ) {
     const seconds = Math.round(totalMinutes * 60);
     return `${seconds} sec`;
   }
 
-  const days = Math.floor(totalMinutes / 480);
-  const remainingAfterDays = totalMinutes - (days * 480);
+  const days = Math.floor(totalMinutes / dayMinutes);
+  const remainingAfterDays = totalMinutes - (days * dayMinutes);
   const hours = Math.floor(remainingAfterDays / 60);
   const minutes = Math.round(remainingAfterDays % 60);
 
