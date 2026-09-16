@@ -99,7 +99,7 @@
         "compatibility":{
           "minimum": "5.3.0",
           "verified": "5.3.0",
-          "maximum": "5.99"
+          "maximum": "6.99"
         }
       }
     ],
