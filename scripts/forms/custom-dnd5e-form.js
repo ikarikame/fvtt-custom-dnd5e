@@ -1,4 +1,4 @@
-import { MODULE } from "../constants.js";
+import { JOURNAL_HELP_BUTTON, MODULE } from "../constants.js";
 import { Logger, openDocument, setSetting } from "../utils.js";
 
 const itemClass = `${MODULE.ID}-item`;
@@ -15,13 +15,193 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Constructor for CustomDnd5eForm.
    *
-   * @param {object} [options={}] The options for the form.
+   * @param {object} [options={}]
    */
   constructor(options = {}) {
     super(options);
     this.nestable = false;
     this.nestType = "children";
     this.includeConfig = true;
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Set the config data from the form data.
+   * @param {object} data
+   * @returns {void|Promise<void>}
+   */
+  setConfig(data) {
+    return this.config.setConfig(data);
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * The `CONFIG.DND5E` key for the config.
+   * @returns {string|undefined}
+   */
+  get configKey() { return this._configKey ?? this.config?.configKey; }
+
+  set configKey(value) { this._configKey = value; }
+
+  /* -------------------------------------------- */
+
+  /**
+   * The setting key for the stored data.
+   * @returns {string|undefined}
+   */
+  get settingKey() { return this._settingKey ?? this.config?.constants?.SETTING?.CONFIG?.KEY; }
+
+  set settingKey(value) { this._settingKey = value; }
+
+  /* -------------------------------------------- */
+
+  /**
+   * The setting key for the enabled state of the custom config.
+   * @returns {string|undefined}
+   */
+  get enableConfigKey() { return this._enableConfigKey ?? this.config?.constants?.SETTING?.ENABLE?.KEY; }
+
+  set enableConfigKey(value) { this._enableConfigKey = value; }
+
+  /* -------------------------------------------- */
+
+  /**
+   * The journal help button descriptor for the window header.
+   * Cached on first access.
+   * @returns {object|undefined}
+   */
+  get headerButton() {
+    if ( this._headerButton ) return this._headerButton;
+    const uuid = this.config?.constants?.UUID;
+    if ( !uuid ) return undefined;
+    this._headerButton = { ...JOURNAL_HELP_BUTTON, uuid };
+    return this._headerButton;
+  }
+
+  set headerButton(value) { this._headerButton = value; }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Get the default config entry for a key.
+   * @param {string|null} [key=null]
+   * @returns {object}
+   */
+  getSettingDefault(key = null) {
+    return this.config.getSettingDefault(key);
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Reset the config and its stored setting to defaults.
+   * @returns {Promise<void>}
+   */
+  async resetConfigSetting() {
+    return this.config.resetConfigSetting();
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Get the select options for resolving select/multiSelect field choices.
+   * @returns {object|null}
+   */
+  _getSelects() {
+    return null;
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Resolve a choices descriptor into a choices object for selectOptions.
+   * @param {string|object|Function} choices
+   * @param {object|null} selects Select options from `_getSelects`
+   * @returns {object} Choices object
+   */
+  _resolveChoices(choices, selects) {
+    if ( typeof choices === "string" ) {
+      const select = selects?.[choices];
+      return select?.choices ?? select;
+    }
+    if ( typeof choices === "function" ) return choices(this);
+    return choices;
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Resolve a single field descriptor into a field context for the `field.hbs` template.
+   * Shared by the edit dialog and the inline list.
+   * @param {object} field
+   * @param {object} entry
+   * @param {string} key Entry key
+   * @param {boolean} isSystem Whether the entry is a system entry
+   * @param {object|null} selects Select options from `_getSelects`
+   * @param {string} labelClass CSS class for the label
+   * @returns {Promise<object>} Resolved field context
+   */
+  async _resolveField(field, entry, key, isSystem, selects, labelClass) {
+    if ( field.type === "key" ) {
+      return {
+        type: "key",
+        label: "CUSTOM_DND5E.key",
+        labelClass,
+        inputName: `${key}.key`,
+        disabledInputName: `${key}.disabledKey`,
+        value: game.i18n.localize(key),
+        isSystem
+      };
+    }
+
+    const resolved = {
+      type: field.type,
+      label: field.label,
+      hint: field.hint,
+      unit: field.unit,
+      tooltip: field.tooltip ? game.i18n.localize(field.tooltip) : undefined,
+      placeholder: field.placeholder,
+      labelClass,
+      customTemplate: field.template,
+      inputName: `${key}.${field.name}`,
+      id: `custom-dnd5e-${field.name.replace(/\./g, "-")}`,
+      disabled: !!(field.disabledWhenSystem && isSystem)
+    };
+
+    let value = foundry.utils.getProperty(entry, field.name);
+    if ( field.localizeValue && typeof value === "string" ) value = game.i18n.localize(value);
+    resolved.value = value;
+
+    if ( field.type === "checkbox" ) {
+      resolved.checked = (field.default === true) ? value !== false : !!value;
+    }
+
+    for ( const attr of ["step", "min", "max"] ) {
+      if ( field[attr] !== undefined ) resolved[attr] = String(field[attr]);
+    }
+
+    if ( field.choices !== undefined ) {
+      resolved.choices = this._resolveChoices(field.choices, selects);
+      resolved.localizeChoices = field.localizeChoices ?? false;
+    }
+
+    if ( field.type === "macroDrop" ) {
+      const macro = value ? await fromUuid(value) : null;
+      resolved.macroName = macro?.name ?? "";
+    }
+
+    if ( field.type === "checkboxGrid" ) {
+      resolved.items = field.items(this).map(item => ({
+        ...item,
+        inputName: `${key}.${item.key}`,
+        id: `custom-dnd5e-${item.key}`
+      }));
+      resolved.labelClass = "custom-dnd5e-edit-label-full";
+    }
+
+    return resolved;
   }
 
   /* -------------------------------------------- */
@@ -66,8 +246,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Create a new item.
    *
-   * @param {Event} event The event that triggered the action.
-   * @param {HTMLElement} target The target element.
+   * @param {Event} event
+   * @param {HTMLElement} target
    */
   static createItem(event, target) {}
 
@@ -76,8 +256,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Reset the form.
    *
-   * @param {Event} event The event that triggered the action.
-   * @param {HTMLElement} target The target element.
+   * @param {Event} event
+   * @param {HTMLElement} target
    */
   static reset(event, target) {}
 
@@ -86,8 +266,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Delete an item.
    *
-   * @param {Event} event The event that triggered the action.
-   * @param {HTMLElement} target The target element.
+   * @param {Event} event
+   * @param {HTMLElement} target
    */
   static async deleteItem(event, target) {
     const item = target.closest(".custom-dnd5e-item");
@@ -131,8 +311,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Open the help document.
    *
-   * @param {Event} event The event that triggered the action.
-   * @param {HTMLElement} target The target element.
+   * @param {Event} event
+   * @param {HTMLElement} target
    */
   static async openHelp(event, target) {
     const uuid = target.dataset.uuid;
@@ -144,8 +324,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Handle dropping a Macro onto a row element.
    *
-   * @param {DragEvent} event The drop event.
-   * @param {HTMLElement} row The row element containing the macro drop zone.
+   * @param {DragEvent} event
+   * @param {HTMLElement} row Row element containing the macro drop zone
    */
   async _onDropMacro(event, row) {
     event.preventDefault();
@@ -171,8 +351,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Clear the macro selection for a row element.
    *
-   * @param {Event} event The event that triggered the action.
-   * @param {HTMLElement} target The target element.
+   * @param {Event} event
+   * @param {HTMLElement} target
    */
   static clearMacro(event, target) {
     const row = target.closest(".custom-dnd5e-action-row, .custom-dnd5e-item");
@@ -192,8 +372,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Toggle expand/collapse of a collapsible item.
    *
-   * @param {Event} event The event that triggered the action.
-   * @param {HTMLElement} target The target element.
+   * @param {Event} event
+   * @param {HTMLElement} target
    */
   static toggleExpand(event, target) {
     const item = target.closest(".collapsible");
@@ -209,8 +389,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Handle the rendering of the form.
    *
-   * @param {object} context The context for rendering.
-   * @param {object} options The options for rendering.
+   * @param {object} context
+   * @param {object} options
    */
   _onRender(context, options) {
     if ( this.headerButton ) {
@@ -248,7 +428,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Attach drag event listeners to an item.
    *
-   * @param {HTMLElement} item The item element to attach listeners to.
+   * @param {HTMLElement} item Item element to attach listeners to
    */
   _attachDragListeners(item) {
     const dragElement = item.querySelector(".custom-dnd5e-drag");
@@ -276,7 +456,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Toggle the visibility of a list based on a checkbox.
    *
-   * @param {HTMLInputElement} checkbox The checkbox element.
+   * @param {HTMLInputElement} checkbox
    */
   _onToggleList(checkbox) {
     const checkParent = checkbox => {
@@ -349,7 +529,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Handle drag leave events.
    *
-   * @param {Event} event The event that triggered the action.
+   * @param {Event} event
    */
   _onDragLeave(event) {
     if ( !this.sourceItem ) return;
@@ -365,7 +545,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Handle drag end events.
    *
-   * @param {Event} event The event that triggered the action.
+   * @param {Event} event
    */
   _onDragEnd(event) {
     if ( !this.sourceItem ) return;
@@ -412,7 +592,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Clean up empty collapsible containers after a drag-out.
    *
-   * @param {HTMLElement|null} parentItem The parent collapsible item to check.
+   * @param {HTMLElement|null} parentItem Parent collapsible item to check.
    */
   #cleanupEmptyCollapsible(parentItem) {
     if ( !parentItem ) return;
@@ -449,7 +629,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * Insert the source item based on the mouse position over the target item.
-   * @returns {boolean} Whether the source item was inserted successfully.
+   * @returns {boolean} Whether the source item was inserted successfully
    */
   #insertSourceItem() {
     if ( this.sourceItem === this.targetItem ) return false;
@@ -553,7 +733,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Get the drag element based on the event.
    *
-   * @param {Event} event The event that triggered the action.
+   * @param {Event} event
    */
   #getDragElement(event) {
     const yPct = (event.clientY - event.target.getBoundingClientRect().top)
@@ -575,8 +755,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Get the changed keys from the form data.
    *
-   * @param {object} formData The form data.
-   * @returns {object} The changed keys.
+   * @param {object} formData
+   * @returns {object} Changed keys.
    */
   getChangedKeys(formData) {
     const changedKeys = {};
@@ -594,8 +774,8 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Validate the form data.
    *
-   * @param {object} formData The form data.
-   * @returns {boolean} Whether the form data passed validation.
+   * @param {object} formData
+   * @returns {boolean} Whether the form data passed validation
    */
   validateFormData(formData) {
     const keys = {};
@@ -631,25 +811,34 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Process the form data for storing into settings.
    *
-   * @param {object} args The arguments.
-   * @returns {object} The processed form data.
+   * @param {object} args
+   * @returns {object} Processed form data
    */
   processFormData(args) {
     const { formData, changedKeys, propertiesToIgnore, setting } = args;
     const processedFormData = {};
     const settingData = setting ? foundry.utils.deepClone(setting) : null;
 
+    // Replace original keys with new keys
+    const renameKeyParts = key => key.split(".").map(part => changedKeys[part] ?? part);
+
+    // Property paths the form manages via its own inputs. When initialising an entry from the
+    // stored setting, object-valued properties under a form-managed path are excluded so that
+    // nested child entries deleted in the form are not resurrected, while plain data objects
+    // without inputs are preserved.
+    const formManagedPaths = new Set();
+    if ( settingData ) {
+      for ( const key of Object.keys(formData.object) ) {
+        const keyParts = renameKeyParts(key);
+        for ( let i = 1; i < keyParts.length; i++ ) {
+          formManagedPaths.add(keyParts.slice(0, i).join("."));
+        }
+      }
+    }
+
     // Helper function to set properties
     const setProperty = ([key, value]) => {
-      const keyParts = key.split(".");
-
-      // Replace original key with new key
-      keyParts.forEach((part, index) => {
-        if ( changedKeys[part] ) {
-          keyParts[index] = changedKeys[part];
-        }
-      });
-
+      const keyParts = renameKeyParts(key);
       const lastProperty = keyParts.pop();
       const propertyPath = keyParts.join(".");
 
@@ -661,12 +850,14 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
         if ( value ) return; // Don't set the 'system' value if it is true
       }
 
-      // If setting passed, initialise property with setting data (excluding nested objects)
+      // If setting passed, initialise property with setting data, excluding form-managed nested objects
       if ( settingData ) {
         const existingData = foundry.utils.getProperty(settingData, propertyPath);
         if ( !foundry.utils.getProperty(processedFormData, propertyPath) && typeof existingData === "object" ) {
           const shallowData = Object.fromEntries(
-            Object.entries(existingData).filter(([_, v]) => typeof v !== "object" || v === null || Array.isArray(v))
+            Object.entries(existingData).filter(([k, v]) =>
+              typeof v !== "object" || v === null || Array.isArray(v)
+              || !formManagedPaths.has(`${propertyPath}.${k}`))
           );
           foundry.utils.setProperty(processedFormData, propertyPath, shallowData);
         }
@@ -688,7 +879,7 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Update the properties for all actors to the changed keys.
    *
-   * @param {object} args The arguments.
+   * @param {object} args
    */
   updateActorKeys(args) {
     const { changedKeys, actorProperties } = args;
@@ -699,6 +890,15 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
         let requiresUpdate = false;
         this.actorProperties.forEach(property => {
           const oldData = foundry.utils.getProperty(actor, property);
+
+          if ( typeof oldData === "string" ) {
+            if ( changedKeys[oldData] ) {
+              requiresUpdate = true;
+              updateData[property] = changedKeys[oldData];
+            }
+            return;
+          }
+
           if ( !Array.isArray(oldData) && !(oldData instanceof Set) ) return;
           const newData = [];
           oldData.forEach(value => {
@@ -721,11 +921,11 @@ export class CustomDnd5eForm extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Handle the form submission.
    *
-   * @param {object} processedFormData The processed form data.
-   * @param {string} settingKey The setting key.
-   * @param {boolean} enableConfig Whether the config is enabled.
-   * @param {Function} setConfig The function to set the config.
-   * @param {boolean} [requiresReload=false] Whether a reload is required.
+   * @param {object} processedFormData
+   * @param {string} settingKey
+   * @param {boolean} enableConfig Whether the config is enabled
+   * @param {Function} setConfig
+   * @param {boolean} [requiresReload=false] Whether a reload of Foundry is required
    */
   async handleSubmit(processedFormData, settingKey, enableConfig, setConfig, requiresReload = false) {
     try {

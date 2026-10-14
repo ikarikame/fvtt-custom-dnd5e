@@ -1,5 +1,13 @@
-import { MODULE, CONSTANTS } from "../constants.js";
+import { MODULE, CONSTANTS, SYSTEM_MANAGED_STATUSES } from "../constants.js";
 import { getSetting, registerSetting } from "../utils.js";
+import { addCursorLabelIcon, setCursorLabelIcon, setCursorLabelPosition } from "../interface/cursor-label.js";
+
+const DISABLE_ICON_ID = "custom-dnd5e-cursor-label-radial-disable";
+const DELETE_ICON_ID = "custom-dnd5e-cursor-label-radial-delete";
+const BLOCKED_ICON_ID = "custom-dnd5e-cursor-label-radial-blocked";
+const FALL_ICON_ID = "custom-dnd5e-cursor-label-radial-fall";
+const HOVER_SCALE_FACTOR = 1.2;
+const HOVER_ANIM_DURATION = 120;
 
 const constants = CONSTANTS.RADIAL_STATUS_EFFECTS;
 
@@ -8,6 +16,18 @@ const constants = CONSTANTS.RADIAL_STATUS_EFFECTS;
  * @type {boolean|null}
  */
 let useDropShadow = null;
+
+/**
+ * Whether the stage-level pointer listener has been installed for this canvas.
+ * @type {boolean}
+ */
+let stageListenerInstalled = false;
+
+/**
+ * The currently hovered click registry entry, or null.
+ * @type {{sprite: PIXI.Sprite, ae: ActiveEffect, token: Token}|null}
+ */
+let hoveredEntry = null;
 
 /**
  * Determine whether drop shadow filters should be used.
@@ -24,10 +44,346 @@ function shouldUseDropShadow() {
 }
 
 /**
- * Register settings.
+ * Register settings, hooks, and libWrapper patches.
  */
 export function register() {
   registerSettings();
+  Hooks.on("canvasReady", onCanvasReady);
+  Hooks.on("canvasTearDown", onCanvasTearDown);
+  registerStatePatch();
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Patch for Token#_refreshState to render status effects above the token border.
+ */
+function registerStatePatch() {
+  if ( typeof libWrapper === "undefined" ) return;
+  libWrapper.register(
+    MODULE.ID,
+    "foundry.canvas.placeables.Token.prototype._refreshState",
+    function(wrapped, ...args) {
+      const result = wrapped(...args);
+      if ( !getSetting(constants.SETTING.KEY) ) return result;
+      if ( this.border?.zIndex === Infinity ) this.border.zIndex = 100;
+      if ( this.effects ) this.effects.zIndex = 200;
+      return result;
+    },
+    "WRAPPER"
+  );
+}
+
+/* -------------------------------------------- */
+
+/**
+ * On canvas ready.
+ */
+function onCanvasReady() {
+  hoveredEntry = null;
+  stageListenerInstalled = false;
+  if ( !getSetting(constants.SETTING.KEY) ) return;
+  if ( !canvas?.app?.stage ) return;
+  canvas.app.stage.eventMode = "static";
+  canvas.app.stage.addEventListener("pointerdown", onStagePointerDown, { capture: true });
+  canvas.app.stage.addEventListener("pointermove", onStagePointerMove, { capture: true });
+  window.addEventListener("keydown", onShiftKeyChange);
+  window.addEventListener("keyup", onShiftKeyChange);
+  stageListenerInstalled = true;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * On canvas tear down.
+ */
+function onCanvasTearDown() {
+  if ( stageListenerInstalled && canvas?.app?.stage ) {
+    canvas.app.stage.removeEventListener("pointerdown", onStagePointerDown, { capture: true });
+    canvas.app.stage.removeEventListener("pointermove", onStagePointerMove, { capture: true });
+    window.removeEventListener("keydown", onShiftKeyChange);
+    window.removeEventListener("keyup", onShiftKeyChange);
+  }
+  stageListenerInstalled = false;
+  clearHoverState();
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether the Select Tokens control is the active canvas tool.
+ * @returns {boolean}
+ */
+function isSelectToolActive() {
+  return ui.controls?.control?.name === "tokens" && game.activeTool === "select";
+}
+
+/* -------------------------------------------- */
+
+/**
+ * On stage pointer down.
+ * @param {PIXI.FederatedPointerEvent} event
+ */
+function onStagePointerDown(event) {
+  if ( event.button !== undefined && event.button !== 0 ) return;
+  if ( !getSetting(constants.SETTING.KEY) ) return;
+  if ( !isSelectToolActive() ) return;
+  if ( !isPointerOverCanvas(event) ) return;
+
+  const hit = hitTestRegistry(event.global);
+  if ( !hit ) return;
+
+  const action = actionVariant(hit.ae, event.shiftKey);
+  if ( !action ) return;
+
+  event.stopPropagation?.();
+  event.stopImmediatePropagation?.();
+  event.nativeEvent?.stopPropagation?.();
+
+  if ( action === "blocked" ) return;
+
+  if ( action === "fall" ) hit.token.document.plummet?.();
+  else if ( action === "delete" ) hit.ae.delete();
+  else hit.ae.update({ disabled: !hit.ae.disabled });
+  clearHoverState();
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether the cursor is on the canvas.
+ * @param {PIXI.FederatedPointerEvent} event
+ * @returns {boolean}
+ */
+function isPointerOverCanvas(event) {
+  const ne = event.nativeEvent;
+  if ( !ne || ne.clientX === undefined || ne.clientY === undefined ) return true;
+  const view = canvas?.app?.view;
+  if ( !view ) return true;
+  const top = document.elementFromPoint(ne.clientX, ne.clientY);
+  return top === view;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Hit-test all registered radial effect sprites against a global point.
+ * @param {PIXI.IPointData} globalPoint
+ * @returns {{sprite: PIXI.Sprite, ae: ActiveEffect, token: Token}|null}
+ */
+function hitTestRegistry(globalPoint) {
+  if ( !globalPoint ) return null;
+  if ( !canvas?.tokens ) return null;
+  for ( const token of canvas.tokens.placeables ) {
+    if ( !token.actor?.isOwner ) continue;
+    if ( !token.effects?.children?.length ) continue;
+    for ( const sprite of token.effects.children ) {
+      const ae = sprite.customDnd5eAe;
+      if ( !ae ) continue;
+      if ( !sprite.parent ) continue;
+      const localPoint = sprite.toLocal(globalPoint);
+      const bounds = sprite.getLocalBounds();
+      if ( bounds.contains(localPoint.x, localPoint.y) ) return { sprite, ae, token };
+    }
+  }
+  return null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * On stage pointer move.
+ * @param {PIXI.FederatedPointerEvent} event
+ */
+function onStagePointerMove(event) {
+  if ( !getSetting(constants.SETTING.KEY) ) {
+    if ( hoveredEntry ) clearHoverState();
+    return;
+  }
+  if ( !isSelectToolActive() ) {
+    if ( hoveredEntry ) clearHoverState();
+    return;
+  }
+  if ( !isPointerOverCanvas(event) ) {
+    if ( hoveredEntry ) clearHoverState();
+    return;
+  }
+  const hit = hitTestRegistry(event.global);
+  const action = hit ? actionVariant(hit.ae, event.shiftKey) : null;
+  if ( action ) {
+    if ( hoveredEntry?.sprite !== hit.sprite ) {
+      if ( hoveredEntry?.sprite ) animateHoverScale(hoveredEntry.sprite, false);
+      animateHoverScale(hit.sprite, true);
+    }
+    hoveredEntry = hit;
+    setCanvasCursor("pointer");
+    const ne = event.nativeEvent;
+    showCursorLabel(action, ne?.clientX, ne?.clientY);
+  } else if ( hoveredEntry ) {
+    clearHoverState();
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Animate a sprite's scale between its base value and a slightly enlarged hover value.
+ * @param {PIXI.Sprite} sprite
+ * @param {boolean} hovered
+ */
+function animateHoverScale(sprite, hovered) {
+  if ( !sprite || sprite.destroyed || !sprite.transform || !sprite.parent ) return;
+  const base = sprite.customDnd5eBaseScale ?? sprite.scale.x;
+  const target = base * (hovered ? HOVER_SCALE_FACTOR : 1);
+  if ( !sprite.customDnd5eHoverAnimName ) sprite.customDnd5eHoverAnimName = Symbol("radial-hover");
+  foundry.canvas.animation.CanvasAnimation.animate(
+    [
+      { parent: sprite.scale, attribute: "x", to: target },
+      { parent: sprite.scale, attribute: "y", to: target }
+    ],
+    {
+      name: sprite.customDnd5eHoverAnimName,
+      duration: HOVER_ANIM_DURATION,
+      ontick: () => redrawTokenBackgrounds(sprite.parent)
+    }
+  );
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Redraw all radial backgrounds.
+ * @param {PIXI.Container|null} tokenEffects token.effects container
+ */
+function redrawTokenBackgrounds(tokenEffects) {
+  if ( !tokenEffects?.bg ) return;
+  const bg = tokenEffects.bg.clear();
+  for ( const sibling of tokenEffects.children ) {
+    if ( sibling === bg || sibling === tokenEffects.overlay ) continue;
+    const params = sibling.customDnd5eBgParams;
+    if ( !params ) continue;
+    drawBackground(sibling, bg, params.gridScale, params.slotSize);
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Update the badge variant in real time as Shift is pressed or released.
+ * @param {KeyboardEvent} event
+ */
+function onShiftKeyChange(event) {
+  if ( event.key !== "Shift" ) return;
+  if ( !hoveredEntry ) return;
+  setCursorLabel(actionVariant(hoveredEntry.ae, event.shiftKey));
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether the effect has the falling status.
+ * @param {ActiveEffect} ae
+ * @returns {boolean}
+ */
+function isFalling(ae) {
+  return !!ae?.statuses?.has("falling");
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether the effect applies a status the D&D 5e system manages automatically.
+ * @param {ActiveEffect} ae
+ * @returns {boolean}
+ */
+function isSystemManaged(ae) {
+  return [...(ae.statuses ?? [])].some(status => SYSTEM_MANAGED_STATUSES.has(status));
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Determine which action a click would perform.
+ * @param {ActiveEffect} ae
+ * @param {boolean} shift
+ * @returns {"fall"|"delete"|"disable"|"blocked"|null}
+ */
+function actionVariant(ae, shift) {
+  if ( !ae ) return null;
+  const clickToToggle = getSetting(constants.SETTING.CLICK_TO_TOGGLE.KEY);
+  if ( isFalling(ae) ) {
+    if ( game.user.isGM ) return "fall";
+    return clickToToggle ? "blocked" : null;
+  }
+  if ( !clickToToggle ) return null;
+  if ( isSystemManaged(ae) ) return "blocked";
+  const isCondition = (ae.statuses?.size ?? 0) > 0;
+  return (isCondition || shift) ? "delete" : "disable";
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Reset hover state, cursor, and hide both badge icons.
+ */
+function clearHoverState() {
+  if ( hoveredEntry?.sprite ) animateHoverScale(hoveredEntry.sprite, false);
+  hoveredEntry = null;
+  setCanvasCursor("");
+  setCursorLabelIcon(DISABLE_ICON_ID, false);
+  setCursorLabelIcon(DELETE_ICON_ID, false);
+  setCursorLabelIcon(BLOCKED_ICON_ID, false);
+  setCursorLabelIcon(FALL_ICON_ID, false);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Set the cursor on the canvas DOM element.
+ * @param {string} value
+ */
+function setCanvasCursor(value) {
+  const view = canvas?.app?.view;
+  if ( view ) view.style.cursor = value;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Add cursor labels.
+ */
+function addCursorLabels() {
+  addCursorLabelIcon(DISABLE_ICON_ID, '<i class="fa-solid fa-toggle-off"></i>');
+  addCursorLabelIcon(DELETE_ICON_ID, '<i class="fa-sharp fa-solid fa-xmark"></i>');
+  addCursorLabelIcon(BLOCKED_ICON_ID, '<i class="fa-solid fa-ban"></i>');
+  addCursorLabelIcon(FALL_ICON_ID, '<i class="fa-solid fa-person-falling"></i>');
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Show the radial cursor label.
+ * @param {"fall"|"delete"|"disable"|"blocked"} variant
+ * @param {number|undefined} clientX
+ * @param {number|undefined} clientY
+ */
+function showCursorLabel(variant, clientX, clientY) {
+  addCursorLabels();
+  if ( clientX !== undefined && clientY !== undefined ) setCursorLabelPosition(clientX, clientY);
+  setCursorLabel(variant);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Set which icon is visible in the cursor label.
+ * @param {"fall"|"delete"|"disable"|"blocked"} variant
+ */
+function setCursorLabel(variant) {
+  setCursorLabelIcon(DISABLE_ICON_ID, variant === "disable");
+  setCursorLabelIcon(DELETE_ICON_ID, variant === "delete");
+  setCursorLabelIcon(BLOCKED_ICON_ID, variant === "blocked");
+  setCursorLabelIcon(FALL_ICON_ID, variant === "fall");
 }
 
 /* -------------------------------------------- */
@@ -42,8 +398,20 @@ function registerSettings() {
       name: game.i18n.localize("CUSTOM_DND5E.setting.radialStatusEffects.name"),
       hint: game.i18n.localize("CUSTOM_DND5E.setting.radialStatusEffects.hint"),
       scope: "world",
-      config: true,
+      config: false,
       requiresReload: true,
+      type: Boolean,
+      default: false
+    }
+  );
+
+  registerSetting(
+    constants.SETTING.CLICK_TO_TOGGLE.KEY,
+    {
+      name: game.i18n.localize(constants.SETTING.CLICK_TO_TOGGLE.NAME),
+      hint: game.i18n.localize(constants.SETTING.CLICK_TO_TOGGLE.HINT),
+      scope: "world",
+      config: false,
       type: Boolean,
       default: false
     }
@@ -72,6 +440,13 @@ export function applyRadialEffects(token) {
   const halfGridSize = gridSize * tokenTileFactor / 2;
   const bg = token.effects.bg.clear();
 
+  const clickEnabled = getSetting(constants.SETTING.CLICK_TO_TOGGLE.KEY) && !!token.actor?.isOwner;
+  const SHOW_ICON = CONST.ACTIVE_EFFECT_SHOW_ICON;
+  const activeEffects = token.actor?.appliedEffects.filter(e =>
+    (e.showIcon === SHOW_ICON.ALWAYS) || ((e.showIcon === SHOW_ICON.CONDITIONAL) && e.isTemporary)
+  ) ?? [];
+  if ( !stageListenerInstalled ) onCanvasReady();
+
   if ( useDropShadow === null ) useDropShadow = shouldUseDropShadow();
   if ( useDropShadow && !bg.filters?.length ) {
     bg.filters = [new PIXI.filters.DropShadowFilter({
@@ -87,12 +462,15 @@ export function applyRadialEffects(token) {
 
     effect.anchor.set(0.5);
     effect.texture.baseTexture.scaleMode = PIXI.SCALE_MODES.LINEAR;
-    effect.width = scaledSize;
-    effect.height = scaledSize;
+    const texW = (effect.texture?.orig?.width ?? effect.texture?.width) || scaledSize;
+    const texH = (effect.texture?.orig?.height ?? effect.texture?.height) || scaledSize;
+    const uniformScale = scaledSize / Math.max(texW, texH);
+    effect.customDnd5eBaseScale = uniformScale;
+    effect.scale.set(uniformScale, uniformScale);
 
     const src = effect.texture?.textureCacheIds?.[0] ?? effect.texture?.baseTexture?.resource?.src ?? "";
     if ( !effect.mask && !src.endsWith(".svg") ) {
-      const texRadius = Math.min(effect.texture.width, effect.texture.height) / 2;
+      const texRadius = Math.min(texW, texH) / 2;
       const mask = new PIXI.Graphics();
       mask.beginFill(0xffffff);
       mask.drawCircle(0, 0, texRadius);
@@ -105,7 +483,12 @@ export function applyRadialEffects(token) {
     effect.position.x = ((radius * Math.cos(angle)) / 2) + halfGridSize;
     effect.position.y = (((-radius * Math.sin(angle)) / 2) + halfGridSize);
 
-    drawBackground(effect, bg, gridScale);
+    effect.customDnd5eBgParams = { gridScale, slotSize: scaledSize };
+    drawBackground(effect, bg, gridScale, scaledSize);
+
+    const ae = activeEffects[effect.zIndex] ?? null;
+    effect.customDnd5eAe = (clickEnabled || isFalling(ae)) ? ae : null;
+
     i++;
   }
 }
@@ -156,9 +539,13 @@ function getSizeOffset(size) {
  * @param {PIXI.Sprite} icon Icon sprite
  * @param {PIXI.Graphics} bg Background graphics
  * @param {number} gridScale Grid scale factor
+ * @param {number} slotSize Intended icon slot size
  */
-function drawBackground(icon, bg, gridScale) {
-  const radius = (icon.width / 2) + (icon.width * 0.1);
+function drawBackground(icon, bg, gridScale, slotSize) {
+  const ratio = (icon.customDnd5eBaseScale && icon.scale.x)
+    ? (icon.scale.x / icon.customDnd5eBaseScale)
+    : 1;
+  const radius = ((slotSize / 2) + (slotSize * 0.1)) * ratio;
   bg.beginFill(0x242731);
   bg.drawCircle(icon.position.x, icon.position.y, radius);
   bg.endFill();

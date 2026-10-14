@@ -54,7 +54,7 @@
       "image": {},
       "text": {
         "format": 1,
-        "content": "<h2 class=\"custom-dnd5e-h2\">Apply Dead</h2><p>When enabled, this setting automatically applies the Dead status effect to an NPC's token when it reaches 0 Hit Points. The Dead status effect is automatically removed if the NPC regains at least 1 Hit Point.</p><h2 class=\"custom-dnd5e-h2\">Apply Instant Death</h2><p>When enabled, this setting automatically applies the Dead status effect to a player character if they are reduced to 0 Hit Points and the remaining damage equals or exceeds their maximum Hit Points.</p><p>This represents the \"Instant Death\" rule from the Player's Handbook (2014), page 197.</p><h2 class=\"custom-dnd5e-h2\">Rotation</h2><p>Enter an angle (in degrees) to rotate a token when it has the Dead status effect. This provides a visual cue for dead creatures on the map.</p><h2 class=\"custom-dnd5e-h2\">Tint</h2><p><span style=\"font-family:'Roboto Condensed', sans-serif\">Enter a color in hex format (e.g., #ff0000 for red) to visually tint the token when it has the Dead status effect. This helps to quickly identify dead creatures on the map. Leave empty for no tint.</span></p>"
+        "content": "<h2 class=\"custom-dnd5e-h2\">Apply Status on 0 HP</h2><p>Select a status effect to automatically apply to an NPC's token when it reaches 0 Hit Points:</p><ul><li><p><strong>None:</strong> Do not apply a status effect.</p></li><li><p><strong>Dead:</strong> Apply the Dead status effect.</p></li><li><p><strong>Unconscious:</strong> Apply the Unconscious condition, allowing NPCs to be knocked out rather than killed.</p></li><li><p><strong>Dead unless Important:</strong> Apply the Dead status effect, unless the NPC has the Important trait enabled in the D&D 5e system's NPC sheet, in which case apply the Unconscious condition.</p></li></ul><p>The applied status effect is automatically removed if the NPC regains at least 1 Hit Point.</p><p><strong>Note:</strong> The D&D 5e system includes its own 'Auto-Apply Downed' setting in its Combat settings. When this setting is set, the system's setting is automatically set to 'Never' to avoid both applying status effects.</p><h2 class=\"custom-dnd5e-h2\">Apply Instant Death</h2><p>When enabled, this setting automatically applies the Dead status effect to a player character if they are reduced to 0 Hit Points and the remaining damage equals or exceeds their maximum Hit Points.</p><p>This represents the \"Instant Death\" rule from the Player's Handbook (2014), page 197.</p><h2 class=\"custom-dnd5e-h2\">Negative HP Death Threshold</h2><p>When set, the Dead status effect is automatically applied when a character's Hit Points drop to or below the negative of this value, providing an alternative to death saving throws. Enter a number (e.g. <code>10</code> for death at -10 HP), an attribute path (e.g. <code>@abilities.con.value</code> for death at negative Constitution score) or a calculation (e.g. <code>@abilities.con.value + @details.level</code>).</p><p>This requires the <strong>Negative HP</strong> setting to be enabled so that Hit Points can drop below 0. Leave empty to disable.</p><h2 class=\"custom-dnd5e-h2\">Rotation</h2><p>Enter an angle (in degrees) to rotate a token when it has the Dead status effect. This provides a visual cue for dead creatures on the map.</p><h2 class=\"custom-dnd5e-h2\">Tint</h2><p><span style=\"font-family:'Roboto Condensed', sans-serif\">Enter a color in hex format (e.g., #ff0000 for red) to visually tint the token when it has the Dead status effect. This helps to quickly identify dead creatures on the map. Leave empty for no tint.</span></p>"
       },
       "video": {
         "controls": true,
@@ -132,7 +132,7 @@
       "image": {},
       "text": {
         "format": 1,
-        "content": "<h2 class=\"custom-dnd5e-h2\">Apply Massive Damage</h2><p>When enabled, this setting automatically prompts a DC 15 Constitution Saving Throw when a character takes damage equal to or greater than half their maximum Hit Points.</p><p>This represents the \"Massive Damage\" optional rule from the Dungeon Master's Guide (2014), page 273.</p><h2 class=\"custom-dnd5e-h2\">Massive Damage Table</h2><p>Optionally assign a Rollable Table to roll on when a character fails the massive damage saving throw. To assign a table, drag and drop a Rollable Table from the sidebar or a compendium onto the Massive Damage Table field.</p><p>To remove the table, click the <span class=\"fa-solid fa-trash\">&#8203;</span> button.</p><h2 class=\"custom-dnd5e-h2\">Animation</h2><p>When enabled, a screen shake and red flash effect will play for the affected player when the massive damage saving throw is failed. This effect is skipped when Foundry's Photosensitive Mode is enabled in the core settings.</p>"
+        "content": "<h2 class=\"custom-dnd5e-h2\">Apply Massive Damage</h2><p>Select whether to apply Massive Damage to Player Characters, NPCs or Both. When set, a Constitution Saving Throw against the configured DC is automatically prompted when a creature takes damage equal to or greater than the threshold percentage of their maximum Hit Points.</p><p>This represents the \"Massive Damage\" optional rule from the Dungeon Master's Guide (2014), page 273.</p><h2 class=\"custom-dnd5e-h2\">Threshold</h2><p>The percentage of maximum Hit Points that must be suffered as damage in a single hit to trigger Massive Damage. Defaults to 50% to match the optional rule.</p><h2 class=\"custom-dnd5e-h2\">Saving Throw DC</h2><p>The DC for the Constitution saving throw when Massive Damage is triggered. Defaults to 15 to match the optional rule.</p><h2 class=\"custom-dnd5e-h2\">Massive Damage Table</h2><p>Optionally assign a Rollable Table to roll on when a character fails the massive damage saving throw. To assign a table, drag and drop a Rollable Table from the sidebar or a compendium onto the Massive Damage Table field.</p><p>To remove the table, click the <span class=\"fa-solid fa-trash\">&#8203;</span> button.</p><h2 class=\"custom-dnd5e-h2\">Animation</h2><p>When enabled, a screen shake and red flash effect will play for the affected player when the massive damage saving throw is failed. This effect is skipped when Foundry's Photosensitive Mode is enabled in the core settings.</p>"
       },
       "video": {
         "controls": true,
@@ -171,7 +171,7 @@
       "image": {},
       "text": {
         "format": 1,
-        "content": "<h2 class=\"custom-dnd5e-h2\">Rolling Hit Points</h2><h3 class=\"custom-dnd5e-h3\">Minimum Value</h3><p>When rolling for Hit Points, automatically reroll if the die result is below the minimum value.</p><h3 class=\"custom-dnd5e-h3\">Reroll Once</h3><ul><li><p>If enabled: Reroll only once when the die result is below the minimum value.</p></li><li><p>If disabled: Continue rerolling until the die result meets or exceeds the minimum value.</p></li></ul><h3 class=\"custom-dnd5e-h3\">Show Take Average</h3><p>Choose to display or hide the \"Take Average\" checkbox on the Hit Points Advancement Step dialog.</p><h2 class=\"custom-dnd5e-h2\">Negative Hit Points</h2><h3 class=\"custom-dnd5e-h3\">Apply Negative Hit Points for Player Characters</h3><p>When enabled, a player character's Hit Points can be reduced below zero into negative values.</p><h3 class=\"custom-dnd5e-h3\">Apply Negative Hit Points for NPCs</h3><p>When enabled, an NPC's Hit Points can be reduced below zero into negative values.</p><h3 class=\"custom-dnd5e-h3\">Heal from 0 HP</h3><ul><li><p>If enabled: When a creature regains Hit Points, they recover from 0 HP regardless of their negative value.</p></li><li><p>If disabled: Creatures recover from their actual negative HP value.</p></li></ul>"
+        "content": "<h2 class=\"custom-dnd5e-h2\">Rolling Hit Points</h2><h3 class=\"custom-dnd5e-h3\">Minimum Value</h3><p>When rolling for Hit Points, automatically reroll if the die result is below the minimum value.</p><h3 class=\"custom-dnd5e-h3\">Reroll Once</h3><ul><li><p>If enabled: Reroll only once when the die result is below the minimum value.</p></li><li><p>If disabled: Continue rerolling until the die result meets or exceeds the minimum value.</p></li></ul><h3 class=\"custom-dnd5e-h3\">Show Take Average</h3><p>Choose to display or hide the \"Take Average\" checkbox on the Hit Points Advancement Step dialog.</p><h2 class=\"custom-dnd5e-h2\">Negative Hit Points</h2><h3 class=\"custom-dnd5e-h3\">Apply Negative Hit Points for Player Characters</h3><p>When enabled, a player character's Hit Points can be reduced below zero into negative values.</p><h3 class=\"custom-dnd5e-h3\">Apply Negative Hit Points for NPCs</h3><p>When enabled, an NPC's Hit Points can be reduced below zero into negative values.</p><h3 class=\"custom-dnd5e-h3\">Per-Actor Override</h3><p>To override the world settings for a specific actor, open the actor's <strong>Hit Points Configuration</strong> (the cog beside Hit Points on the sheet) and set <strong>Negative HP</strong>:</p><ul><li><p><strong>Default:</strong> Use the world's Negative HP settings.</p></li><li><p><strong>On:</strong> This actor's HP can go below zero, even when the world settings are disabled.</p></li><li><p><strong>Off:</strong> This actor's HP cannot go below zero, even when the world settings are enabled.</p></li></ul><h3 class=\"custom-dnd5e-h3\">Heal from 0 HP</h3><ul><li><p>If enabled: When a creature regains Hit Points, they recover from 0 HP regardless of their negative value.</p></li><li><p>If disabled: Creatures recover from their actual negative HP value.</p></li></ul>"
       },
       "video": {
         "controls": true,
@@ -190,7 +190,7 @@
         "systemId": "dnd5e",
         "systemVersion": "4.0.0",
         "createdTime": 1726520913888,
-        "modifiedTime": 1726524136980,
+        "modifiedTime": 1789227235969,
         "lastModifiedBy": "0wJRsV2r9Hv1a7q0",
         "exportSource": null
       },
@@ -396,6 +396,45 @@
       "_key": "!journal.pages!ngr8w6WBycK59brj.PinXfgV1fJKcVAcG"
     },
     {
+      "sort": 560000,
+      "name": "Speed Factor Initiative",
+      "type": "text",
+      "_id": "sFiW8mKzQ2rXnVb3",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<p>Speed Factor Initiative is an optional initiative method based on the variant rule from the Dungeon Master's Guide (2014), page 270.</p><p>When enabled, each combatant chooses one or more actions at the start of every round. Initiative is then rolled for all combatants with a modifier equal to the creature's size plus the chosen action(s). Choices are hidden until initiative is rolled, then revealed.</p><article class=\"custom-dnd5e-note\"><header><span class=\"fa-solid fa-note-sticky\">&#8203;</span><p>Note</p></header><p>Players choose actions for their own combatants. The GM chooses for NPCs and for player characters whose owner is not logged in.</p></article><h2 class=\"custom-dnd5e-h2\">Enable</h2><p>When enabled, replaces the standard initiative method with Speed Factor Initiative. This replaces the <strong>Reroll Initiative Each Round</strong> behaviour.</p><h2 class=\"custom-dnd5e-h2\">Reveal Choices</h2><p>The minimum role required to see chosen actions once initiative has been rolled. A combatant's owner can always see its own choice, and choices are hidden from others while combatants are still selecting.</p><h2 class=\"custom-dnd5e-h2\">Selection Timeout</h2><p>How long, in seconds, to wait for combatants to choose an action before rolling anyway. Leave empty to wait indefinitely.</p><h2 class=\"custom-dnd5e-h2\">Default Action on Timeout</h2><p>The action assigned to any combatant who hasn't chosen when the Selection Timeout is reached. Choose <strong>Skip (no action)</strong> to roll with only the size modifier instead.</p><h2 class=\"custom-dnd5e-h2\">Size Modifiers</h2><p>The initiative modifier applied for each creature size. Custom sizes are included automatically.</p><h2 class=\"custom-dnd5e-h2\">Actions</h2><p>Configure the actions and initiative modifiers combatants choose from each round. Add, edit, reorder, hide or delete actions. Combatants may select more than one action, for example a main action and a Bonus Action, and the chosen modifiers are summed.</p><h3 class=\"custom-dnd5e-h3\">Is a Group</h3><p>Turn an action into a group. In the action bar its button opens a popover of the actions assigned to it, along with any automatically included weapon, spell and spell level actions.</p><h3 class=\"custom-dnd5e-h3\">Include Weapons</h3><p>Automatically include actions for weapons in the group.</p><h3 class=\"custom-dnd5e-h3\">Filter to Available Weapons</h3><p>Filter the included weapons to those available to the combatant.</p><h3 class=\"custom-dnd5e-h3\">Include Spells</h3><p>Automatically include actions for spells available to the combatant.</p><h3 class=\"custom-dnd5e-h3\">Include Spell Levels</h3><p>Automatically include actions for spell levels (0&ndash;9).</p><h3 class=\"custom-dnd5e-h3\">Initiative Modifier</h3><p>The value added to the initiative roll when the action is chosen.</p><h2 class=\"custom-dnd5e-h2\">Weapons</h2><p>Configure a per-weapon initiative modifier. Defaults are seeded from each weapon's properties following the variant rule: a light or finesse weapon is +2, a heavy weapon is -2, a two-handed weapon is -2, and a weapon with the Loading property is -5. Modifiers for different properties are summed, so a heavy, two-handed weapon is -4.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.363",
+        "systemId": "dnd5e",
+        "systemVersion": "5.3.3",
+        "createdTime": 1771960000000,
+        "modifiedTime": 1771960000000,
+        "lastModifiedBy": "0wJRsV2r9Hv1a7q0",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!ngr8w6WBycK59brj.sFiW8mKzQ2rXnVb3"
+    },
+    {
       "sort": 350000,
       "name": "Exhaustion",
       "type": "text",
@@ -486,7 +525,7 @@
       "image": {},
       "text": {
         "format": 1,
-        "content": "<article class=\"custom-dnd5e-note\"><header><span class=\"fa-solid fa-note-sticky\">&#8203;</span><p>Note</p></header><p>Consumption of ammunition or uses is not currently included with this setting.</p></article><h2 class=\"custom-dnd5e-h2\">Enable Option in Attack Activity</h2><p>Select which actor types can use Probabilistic Damage: Player Characters, NPCs, Both, or Neither (to disable the feature).</p><p>When enabled, a <strong>Use Probabilistic Damage</strong> option will appear under the <strong>Effects</strong> tab within the <strong>Attack Damage</strong> section of the Attack activity sheet.</p><h3 class=\"custom-dnd5e-h3\">What is Probabilistic Damage?</h3><p>Probabilistic Damage replaces the attack roll of an Attack activity with a damage roll scaled by the chance to hit. This features activates only when the following conditions are met:</p><ul><li><p>Only <strong>one</strong> token is targeted.</p></li><li><p>The activity used is an <strong>Attack</strong>.</p></li></ul><p>Probabilistic damage is calculated as follows:</p><p><code>Scaled Damage = round(Damage Roll × Hit Chance)</code></p><p>When triggered, the damage roll is immediately posted to the chat. You can apply Advantage or Disadvantage by holding the appropriate key modifier (e.g., Alt, Ctrl) when clicking the attack.</p><h2 class=\"custom-dnd5e-h2\">Use Average Damage</h2><p>When enabled, probabilistic damage will use the average damage, which is then scaled by the chance to hit. If disabled, damage is rolled before scaling.</p>"
+        "content": "<article class=\"custom-dnd5e-note\"><header><span class=\"fa-solid fa-note-sticky\">&#8203;</span><p>Note</p></header><p>Consumption of ammunition or uses is not currently included with this setting.</p></article><h2 class=\"custom-dnd5e-h2\">Enable Option in Attack and Save Activities</h2><p>Select which actor types can use Probabilistic Damage: Player Characters, NPCs, Both, or Neither (to disable the feature).</p><p>When enabled, a <strong>Use Probabilistic Damage</strong> option will appear at the top of the <strong>Damage</strong> section on the <strong>Effect</strong> tab of Attack and Save activity sheets.</p><h3 class=\"custom-dnd5e-h3\">What is Probabilistic Damage?</h3><p>Probabilistic Damage replaces the attack roll of an Attack activity, or the saving throw of a Save activity, with a damage roll scaled by the chance the damage lands. This feature activates only when the following conditions are met:</p><ul><li><p>Only <strong>one</strong> token is targeted.</p></li><li><p>The activity used is an <strong>Attack</strong> or a <strong>Save</strong>.</p></li></ul><p>Probabilistic damage is calculated as follows:</p><ul><li><p><strong>Attack:</strong> <code>Scaled Damage = round(Damage Roll × Hit Chance)</code></p></li><li><p><strong>Save:</strong> <code>Scaled Damage = round(Damage Roll × (Fail Chance + Save Chance × Damage on Save))</code>, where Damage on Save is 1 for full damage, 0.5 for half damage and 0 for no damage. The target's best saving throw bonus out of those the activity allows is used.</p></li></ul><p>For example, 49 damage against a target with a 20% chance to save, taking half damage on a success, deals round(49 × (0.8 + 0.2 × 0.5)) = 44 damage.</p><p>When triggered, the damage roll is immediately posted to the chat. For attacks, you can apply Advantage or Disadvantage by holding the appropriate key modifier (e.g., Alt, Ctrl) when clicking the attack.</p><p>To use Probabilistic Damage once on an activity where the option is off, hold the <strong>Use Probabilistic Damage</strong> key when using it. Set the key in <strong>Game Settings &gt; Configure Controls</strong>.</p><h2 class=\"custom-dnd5e-h2\">Use Average Damage</h2><p>When enabled, probabilistic damage will use the average damage, which is then scaled by the chance to hit or the chance to fail the save. If disabled, damage is rolled before scaling.</p>"
       },
       "video": {
         "controls": true,
@@ -525,7 +564,7 @@
       "image": {},
       "text": {
         "format": 1,
-        "content": "<h2 class=\"custom-dnd5e-h2\">Use Average Damage</h2><p>Choose whether character, NPCs or both will deal average damage, otherwise damage wil be rolled instead.</p>"
+        "content": "<h2 class=\"custom-dnd5e-h2\">Use Average Damage</h2><p>Choose whether character, NPCs or both will deal average damage, otherwise damage wil be rolled instead.</p><h2 class=\"custom-dnd5e-h2\">Show Damage Roll Dialog</h2><p>Show the damage roll dialog when dealing average damage, so you can choose between critical and normal damage and add a situational bonus. Otherwise, critical damage is applied automatically when the attack roll is a critical hit.</p>"
       },
       "video": {
         "controls": true,

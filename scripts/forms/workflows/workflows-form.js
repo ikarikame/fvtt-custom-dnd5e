@@ -2,8 +2,14 @@ import { CONSTANTS, JOURNAL_HELP_BUTTON, MODULE } from "../../constants.js";
 import { deleteProperty, getSetting, Logger, setSetting } from "../../utils.js";
 import { CustomDnd5eForm } from "../custom-dnd5e-form.js";
 import { JournalDropMixin } from "../journal-drop-mixin.js";
-import { WorkflowsEditForm, getActionChoices } from "./workflows-edit.js";
-import { EVENT_TO_HOOK, ITEM_EVENT_TO_HOOK, rebuild } from "../../workflows/workflows.js";
+import { WorkflowsEditForm } from "./workflows-edit.js";
+import { rebuild } from "../../workflows/workflows.js";
+import {
+  copyWorkflowToClipboard,
+  parseAndValidateWorkflows,
+  promptForWorkflowJson,
+  validateWorkflowSchema
+} from "./workflow-clipboard.js";
 
 const id = CONSTANTS.WORKFLOWS.ID;
 const form = `${id}-form`;
@@ -21,7 +27,9 @@ export class WorkflowsForm extends JournalDropMixin(CustomDnd5eForm) {
     actions: {
       new: WorkflowsForm.createItem,
       edit: WorkflowsForm.edit,
-      delete: WorkflowsForm.deleteItem
+      delete: WorkflowsForm.deleteItem,
+      copy: WorkflowsForm.copyToClipboard,
+      paste: WorkflowsForm.pasteFromClipboard
     },
     form: {
       handler: WorkflowsForm.submit
@@ -36,7 +44,7 @@ export class WorkflowsForm extends JournalDropMixin(CustomDnd5eForm) {
 
   static PARTS = {
     form: {
-      template: `modules/${MODULE.ID}/templates/workflows/${form}.hbs`
+      template: CONSTANTS.CONFIG.TEMPLATE.SECTIONS
     }
   };
 
@@ -56,11 +64,34 @@ export class WorkflowsForm extends JournalDropMixin(CustomDnd5eForm) {
   async _prepareContext() {
     this.actorSetting = getSetting(CONSTANTS.WORKFLOWS.SETTING.ACTOR_WORKFLOWS.KEY) || {};
     this.itemSetting = getSetting(CONSTANTS.WORKFLOWS.SETTING.ITEM_WORKFLOWS.KEY) || {};
+    const copy = { action: "copy", icon: "fa-regular fa-clipboard", tooltip: "CUSTOM_DND5E.copyToClipboard" };
+    const paste = { action: "paste", icon: "fa-regular fa-paste", tooltip: "CUSTOM_DND5E.pasteFromClipboard" };
+    const section = (tab, items) => ({
+      tab,
+      listTitle: "CUSTOM_DND5E.form.workflows.listTitle",
+      showNew: true,
+      headerActions: [paste],
+      list: {
+        items,
+        toggleField: "enabled",
+        editAction: "edit",
+        showToggle: true,
+        showSystem: false,
+        rowActions: [copy]
+      }
+    });
     return {
       activeTab: this.tabGroups.primary ?? "actors",
-      enabled: getSetting(CONSTANTS.WORKFLOWS.SETTING.ENABLE.KEY) || false,
-      actorTriggers: this.actorSetting,
-      itemTriggers: this.itemSetting
+      enableToggle: {
+        name: "enabled",
+        label: "CUSTOM_DND5E.form.workflows.enable",
+        checked: getSetting(CONSTANTS.WORKFLOWS.SETTING.ENABLE.KEY) || false
+      },
+      tabs: [
+        { id: "actors", label: "CUSTOM_DND5E.actors", icon: "fa-solid fa-users" },
+        { id: "items", label: "CUSTOM_DND5E.items", icon: "fa-solid fa-suitcase" }
+      ],
+      sections: [section("actors", this.actorSetting), section("items", this.itemSetting)]
     };
   }
 
@@ -106,6 +137,41 @@ export class WorkflowsForm extends JournalDropMixin(CustomDnd5eForm) {
 
   /* -------------------------------------------- */
 
+  /**
+   * Copy a single workflow's JSON to the clipboard.
+   * @param {Event} event Click event
+   * @param {HTMLElement} target Clicked element
+   */
+  static async copyToClipboard(event, target) {
+    const item = target.closest(".item");
+    if ( !item ) return;
+    const key = item.dataset.key;
+    if ( !key ) return;
+
+    const setting = this.isItem ? this.itemSetting : this.actorSetting;
+    const workflow = setting[key];
+    if ( !workflow ) return;
+
+    const entityType = this.isItem ? "item" : "actor";
+    await copyWorkflowToClipboard(workflow, entityType, key);
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Open a dialog to paste workflow JSON.
+   */
+  static async pasteFromClipboard() {
+    const form = this;
+    await promptForWorkflowJson(async text => {
+      const entries = parseAndValidateWorkflows(text, form.isItem ? "item" : "actor");
+      if ( !entries ) return;
+      await form._createWorkflowsFromImport(entries);
+    });
+  }
+
+  /* -------------------------------------------- */
+
   static async edit(event, target) {
     const item = target.closest(".item");
     if ( !item ) return;
@@ -129,7 +195,7 @@ export class WorkflowsForm extends JournalDropMixin(CustomDnd5eForm) {
    * @returns {{valid: boolean, error: string|null}} Validation result
    */
   _validateImportSchema(data) {
-    return this._validateWorkflowSchema(data);
+    return validateWorkflowSchema(data, this.isItem ? "item" : "actor");
   }
 
   /* -------------------------------------------- */
@@ -141,74 +207,6 @@ export class WorkflowsForm extends JournalDropMixin(CustomDnd5eForm) {
    */
   async _createFromImport(entries) {
     return this._createWorkflowsFromImport(entries);
-  }
-
-  /* -------------------------------------------- */
-
-  /**
-   * Validate a parsed workflow object against the expected schema.
-   * @param {*} data Parsed object
-   * @returns {{valid: boolean, error: string|null}} Validation result
-   */
-  _validateWorkflowSchema(data) {
-    if ( !data || typeof data !== "object" || Array.isArray(data) ) {
-      return { valid: false, error: game.i18n.localize("CUSTOM_DND5E.workflowImport.error.notObject") };
-    }
-
-    if ( typeof data.name !== "string" || !data.name.trim() ) {
-      return { valid: false, error: game.i18n.localize("CUSTOM_DND5E.workflowImport.error.invalidName") };
-    }
-
-    if ( data.entityType !== undefined && data.entityType !== "actor" && data.entityType !== "item" ) {
-      return { valid: false, error: game.i18n.localize("CUSTOM_DND5E.workflowImport.error.invalidEntityType") };
-    }
-
-    const allowedKeys = new Set([
-      "name", "enabled", "entityType", "actorTypes", "target", "triggers", "actions"
-    ]);
-    for ( const key of Object.keys(data) ) {
-      if ( !allowedKeys.has(key) ) {
-        return {
-          valid: false,
-          error: game.i18n.format("CUSTOM_DND5E.workflowImport.error.unknownProperty", { property: key })
-        };
-      }
-    }
-
-    // Validate triggers
-    const isItem = data.entityType === "item";
-    const validEvents = new Set(Object.keys(isItem ? ITEM_EVENT_TO_HOOK : EVENT_TO_HOOK));
-    if ( data.triggers !== undefined ) {
-      if ( typeof data.triggers !== "object" || data.triggers === null ) {
-        return { valid: false, error: game.i18n.localize("CUSTOM_DND5E.workflowImport.error.invalidTrigger") };
-      }
-      for ( const trigger of Object.values(data.triggers) ) {
-        if ( !trigger || typeof trigger.event !== "string" || !validEvents.has(trigger.event) ) {
-          return {
-            valid: false,
-            error: game.i18n.format("CUSTOM_DND5E.workflowImport.error.invalidTrigger", { event: trigger?.event ?? "" })
-          };
-        }
-      }
-    }
-
-    // Validate actions
-    const validActionTypes = new Set(getActionChoices(data.entityType ?? "actor").map(c => c.value));
-    if ( data.actions !== undefined ) {
-      if ( typeof data.actions !== "object" || data.actions === null ) {
-        return { valid: false, error: game.i18n.localize("CUSTOM_DND5E.workflowImport.error.invalidAction") };
-      }
-      for ( const action of Object.values(data.actions) ) {
-        if ( !action || typeof action.type !== "string" || !validActionTypes.has(action.type) ) {
-          return {
-            valid: false,
-            error: game.i18n.format("CUSTOM_DND5E.workflowImport.error.invalidAction", { type: action?.type ?? "" })
-          };
-        }
-      }
-    }
-
-    return { valid: true, error: null };
   }
 
   /* -------------------------------------------- */

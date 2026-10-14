@@ -1,27 +1,148 @@
-import { CONSTANTS } from "../constants.js";
 import {
-  c5eLoadTemplates,
   checkEmpty,
   getSetting,
   registerMenu,
   registerSetting,
   resetDnd5eConfig,
   resetSetting } from "../utils.js";
-import { ItemPropertiesForm } from "../forms/config-form.js";
+import { MODULE } from "../constants.js";
+import { ConfigForm } from "../forms/config-form.js";
+import { ConfigEditForm } from "../forms/config-edit-form.js";
+import { configs } from "./registry.js";
 
-const constants = CONSTANTS.ITEM_PROPERTIES;
-const configKey = "itemProperties";
+/* -------------------------------------------- */
+/*  CONSTANTS                                   */
+/* -------------------------------------------- */
+
+export const constants = {
+  ID: "itemProperties",
+  MENU: {
+    KEY: "item-properties-menu",
+    HINT: "CUSTOM_DND5E.menu.itemProperties.hint",
+    ICON: "fas fa-sparkles",
+    LABEL: "CUSTOM_DND5E.menu.itemProperties.label",
+    NAME: "CUSTOM_DND5E.menu.itemProperties.name"
+  },
+  SETTING: {
+    ENABLE: {
+      KEY: "enable-item-properties"
+    },
+    CONFIG: {
+      KEY: "item-properties"
+    }
+  },
+  UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.dM6sUm93mUi9oeBo"
+};
+export const configKey = "itemProperties";
+export const configKeys = ["itemProperties", "validProperties"];
+
+/* -------------------------------------------- */
+/*  FORM CLASSES                                */
+/* -------------------------------------------- */
+
+/**
+ * Per-item-property edit form.
+ * @extends ConfigEditForm
+ */
+class ItemPropertiesEditForm extends ConfigEditForm {
+  /**
+   * @param {object} args
+   */
+  constructor(args) {
+    super(args);
+    this.config = configs.itemProperties;
+    this.requiresReload = true;
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * @type {object}
+   */
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-item-properties-edit-form`,
+    window: {
+      title: `CUSTOM_DND5E.form.${constants.ID}.edit.title`
+    }
+  };
+
+  /* -------------------------------------------- */
+
+  /**
+   * @type {object[]}
+   */
+  static FIELDS = [
+    { name: "label", type: "text", label: "CUSTOM_DND5E.label", localizeValue: true },
+    { name: "abbreviation", type: "text", label: "CUSTOM_DND5E.abbreviation", localizeValue: true },
+    { name: "icon", type: "filePicker", label: "CUSTOM_DND5E.icon" },
+    { name: "isPhysical", type: "checkbox", label: "CUSTOM_DND5E.physical",
+      hint: "CUSTOM_DND5E.form.itemProperties.isPhysical.hint" },
+    { name: "isTag", type: "checkbox", label: "CUSTOM_DND5E.tag", hint: "CUSTOM_DND5E.form.itemProperties.isTag.hint" },
+    { name: "reference", type: "text", label: "CUSTOM_DND5E.reference",
+      hint: "CUSTOM_DND5E.form.itemProperties.reference.hint" },
+    { name: "itemTypes", type: "checkboxGrid", label: "CUSTOM_DND5E.itemTypes", items: form => form._getItemTypes(),
+      hint: "CUSTOM_DND5E.form.itemProperties.itemTypes.hint" }
+  ];
+
+  /* -------------------------------------------- */
+
+  /**
+   * Get the item types.
+   * @returns {Array} List of item types
+   */
+  _getItemTypes() {
+    return Object.keys(CONFIG.DND5E.validProperties).map(key => {
+      let label = game.i18n.localize(`CUSTOM_DND5E.${key}`);
+      if ( label === `CUSTOM_DND5E.${key}` ) {
+        label = key.charAt(0).toUpperCase() + key.slice(1);
+      }
+      return {
+        key,
+        label,
+        checked: !!this.setting?.[this.key]?.[key]
+      };
+    }
+    );
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Item properties settings menu form.
+ * @extends ConfigForm
+ */
+class ItemPropertiesForm extends ConfigForm {
+  constructor() {
+    super();
+    this.editForm = ItemPropertiesEditForm;
+    this.listTitle = `CUSTOM_DND5E.form.${constants.ID}.listTitle`;
+    this.requiresReload = false;
+    this.config = configs.itemProperties;
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * @type {object}
+   */
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-item-properties-form`,
+    window: {
+      title: `CUSTOM_DND5E.form.${constants.ID}.title`
+    }
+  };
+}
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
 
 /**
  * Register settings and load templates.
  */
 export function register() {
   registerSettings();
-
-  const templates = [
-    constants.TEMPLATE.EDIT
-  ];
-  c5eLoadTemplates(templates);
 }
 
 /* -------------------------------------------- */
@@ -65,13 +186,14 @@ function registerSettings() {
   );
 }
 
-
+/* -------------------------------------------- */
+/*  CONFIG                                      */
 /* -------------------------------------------- */
 
 /**
  * Get default config.
- * @param {string|null} key The key
- * @returns {object} The config
+ * @param {string|null} key
+ * @returns {object} Default config
  */
 export function getSettingDefault(key = null) {
   const config = foundry.utils.deepClone(CONFIG.CUSTOM_DND5E[configKey]);
@@ -110,11 +232,12 @@ export async function resetConfigSetting() {
 
 /**
  * Set CONFIG.DND5E.itemProperties and CONFIG.DND5E.validProperties.
- * @param {object} [settingData=null] The setting data
+ * @param {object} [settingData=null]
  * @returns {void}
  */
-export function setConfig(settingData = null) {
+export function setConfig(settingData) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
+  settingData ??= getSetting(constants.SETTING.CONFIG.KEY);
   if ( checkEmpty(settingData) ) return handleEmptyData();
 
   const itemTypesSet = new Set(
@@ -170,8 +293,8 @@ function handleEmptyData() {
 
 /**
  * Build config.
- * @param {object} settingData The setting data
- * @returns {object} The config data
+ * @param {object} settingData
+ * @returns {object} Config data
  */
 function buildItemPropertiesConfig(settingData) {
   return Object.fromEntries(
@@ -185,8 +308,8 @@ function buildItemPropertiesConfig(settingData) {
 
 /**
  * Build config entry.
- * @param {object} data The data
- * @returns {object} The config entry
+ * @param {object} data
+ * @returns {object} Config entry
  */
 function buildItemPropertiesConfigEntry(data) {
   return {
@@ -199,13 +322,14 @@ function buildItemPropertiesConfigEntry(data) {
   };
 }
 
+/* -------------------------------------------- */
+
 /**
  * Set valid item properties.
- * @param {object} settingData The setting data
- * @param {string[]} itemTypes The item types
+ * @param {object} settingData
+ * @param {string[]} itemTypes List of item types
  */
 function setValidProperties(settingData, itemTypes) {
-
   const validProperties = {};
 
   Object.entries(CONFIG.CUSTOM_DND5E.validProperties).forEach(property => {

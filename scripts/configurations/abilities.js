@@ -1,161 +1,141 @@
-import { CONSTANTS } from "../constants.js";
-import {
-  c5eLoadTemplates,
-  checkEmpty,
-  getDefaultDnd5eConfig,
-  getSetting,
-  registerMenu,
-  registerSetting,
-  resetDnd5eConfig,
-  resetSetting } from "../utils.js";
-import { AbilitiesForm } from "../forms/config-form.js";
+import { MODULE } from "../constants.js";
+import { ConfigForm } from "../forms/config-form.js";
+import { ConfigEditForm } from "../forms/config-edit-form.js";
+import { configs } from "./registry.js";
 
-const constants = CONSTANTS.ABILITIES;
-const configKey = "abilities";
+/* -------------------------------------------- */
+/*  CONSTANTS                                   */
+/* -------------------------------------------- */
+
+const constants = {
+  ID: "abilities",
+  MENU: {
+    KEY: "abilities-menu",
+    HINT: "CUSTOM_DND5E.menu.abilities.hint",
+    ICON: "fas fa-head-side-brain",
+    LABEL: "CUSTOM_DND5E.menu.abilities.label",
+    NAME: "CUSTOM_DND5E.menu.abilities.name"
+  },
+  SETTING: {
+    ENABLE: { KEY: "enable-abilities" },
+    CONFIG: { KEY: "abilities" }
+  },
+  UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.tVG6b7kBJUOVvpwP"
+};
+
+/* -------------------------------------------- */
+/*  FORM CLASSES                                */
+/* -------------------------------------------- */
 
 /**
- * Register settings and load templates.
+ * Per-item edit form for abilities.
+ * @extends ConfigEditForm
  */
-export function register() {
-  registerSettings();
+class AbilitiesEditForm extends ConfigEditForm {
+  /**
+   * @param {object} args
+   */
+  constructor(args) {
+    super(args);
+    this.config = configs.abilities;
+    this.requiresReload = true;
+  }
 
-  const templates = [
-    constants.TEMPLATE.EDIT
+  /* -------------------------------------------- */
+
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-abilities-edit-form`,
+    window: { title: `CUSTOM_DND5E.form.${constants.ID}.edit.title` }
+  };
+
+  /* -------------------------------------------- */
+
+  /**
+   * @type {object[]}
+   */
+  static FIELDS = [
+    { name: "fullKey", type: "text", label: "CUSTOM_DND5E.fullKey", localizeValue: true,
+      hint: "CUSTOM_DND5E.form.abilities.fullKey.hint" },
+    { name: "label", type: "text", label: "CUSTOM_DND5E.label", localizeValue: true },
+    { name: "abbreviation", type: "text", label: "CUSTOM_DND5E.abbreviation", localizeValue: true },
+    { name: "icon", type: "filePicker", label: "CUSTOM_DND5E.icon" },
+    { name: "improvement", type: "checkbox", label: "CUSTOM_DND5E.form.abilities.improvement.label", default: true,
+      hint: "CUSTOM_DND5E.form.abilities.improvement.hint" },
+    { name: "type", type: "select", label: "CUSTOM_DND5E.type", choices: "type", localizeChoices: true,
+      disabledWhenSystem: true, hint: "CUSTOM_DND5E.form.abilities.type.hint" },
+    { name: "reference", type: "text", label: "CUSTOM_DND5E.reference",
+      hint: "CUSTOM_DND5E.form.abilities.reference.hint" },
+    { name: "rollMode", type: "select", label: "CUSTOM_DND5E.rollMode", choices: "rollMode", localizeChoices: true,
+      hint: "CUSTOM_DND5E.form.abilities.rollMode.hint" }
   ];
-  c5eLoadTemplates(templates);
-}
 
-/* -------------------------------------------- */
+  /* -------------------------------------------- */
 
-/**
- * Register settings.
- */
-function registerSettings() {
-  registerMenu(
-    constants.MENU.KEY,
-    {
-      hint: game.i18n.localize(constants.MENU.HINT),
-      label: game.i18n.localize(constants.MENU.LABEL),
-      name: game.i18n.localize(constants.MENU.NAME),
-      icon: constants.MENU.ICON,
-      type: AbilitiesForm,
-      restricted: true,
-      scope: "world"
-    }
-  );
-
-  registerSetting(
-    constants.SETTING.ENABLE.KEY,
-    {
-      scope: "world",
-      config: false,
-      requiresReload: true,
-      type: Boolean,
-      default: false
-    }
-  );
-
-  registerSetting(
-    constants.SETTING.CONFIG.KEY,
-    {
-      scope: "world",
-      config: false,
-      requiresReload: true,
-      type: Object,
-      default: getSettingDefault()
-    }
-  );
-}
-
-/* -------------------------------------------- */
-
-/**
- * Get default config.
- * @param {string|null} key The key
- * @returns {object} The config data
- */
-export function getSettingDefault(key = null) {
-  return getDefaultDnd5eConfig(configKey, key);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Reset config and setting to their default values.
- */
-export async function resetConfigSetting() {
-  await resetDnd5eConfig(configKey);
-  await resetSetting(constants.SETTING.CONFIG.KEY);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Set CONFIG.DND5E.abilities.
- * @param {object} [settingData=null] The setting data
- * @returns {void}
- */
-export function setConfig(settingData = null) {
-  if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
-  if ( checkEmpty(settingData) ) return handleEmptyData();
-
-  const mergedSettingData = foundry.utils.mergeObject(
-    foundry.utils.mergeObject(settingData, CONFIG.DND5E[configKey], { overwrite: false }),
-    getSettingDefault(),
-    { overwrite: false }
-  );
-
-  const configData = buildConfig(mergedSettingData);
-
-  Hooks.callAll("customDnd5e.setAbilitiesConfig", configData);
-
-  if ( configData ) {
-    CONFIG.DND5E[configKey] = configData;
+  /**
+   * Select options for the form.
+   * @returns {object} Select options
+   */
+  _getSelects() {
+    return {
+      rollMode: {
+        choices: {
+          default: "CUSTOM_DND5E.default",
+          blindroll: "CHAT.MODES.blind",
+          gmroll: "CHAT.MODES.gm",
+          publicroll: "CHAT.MODES.public",
+          selfroll: "CHAT.MODES.self"
+        }
+      },
+      type: {
+        choices: {
+          mental: "CUSTOM_DND5E.mental",
+          physical: "CUSTOM_DND5E.physical"
+        }
+      }
+    };
   }
 }
 
 /* -------------------------------------------- */
 
 /**
- * Handle empty data.
+ * Main settings menu form for abilities.
+ * @extends ConfigForm
  */
-function handleEmptyData() {
-  if ( checkEmpty(CONFIG.DND5E[configKey]) ) {
-    resetDnd5eConfig(configKey);
+class AbilitiesForm extends ConfigForm {
+  constructor() {
+    super();
+    this.editForm = AbilitiesEditForm;
+    this.listTitle = `CUSTOM_DND5E.form.${constants.ID}.listTitle`;
+    this.requiresReload = true;
+    this.config = configs.abilities;
   }
-}
 
-/* -------------------------------------------- */
-
-/**
- * Build config.
- * @param {object} settingData The setting data
- * @returns {object} The config data
- */
-function buildConfig(settingData) {
-  return Object.fromEntries(
-    Object.keys(settingData)
-      .filter(key => settingData[key].visible || settingData[key].visible === undefined)
-      .map(key => [key, buildConfigEntry(settingData[key])])
-  );
-}
-
-/* -------------------------------------------- */
-
-/**
- * Build config entry.
- * @param {object} data The data
- * @returns {object} The config entry
- */
-function buildConfigEntry(data) {
-  return {
-    abbreviation: game.i18n.localize(data.abbreviation),
-    ...(data.defaults !== undefined && { defaults: { ...data.defaults } }),
-    fullKey: data.fullKey,
-    ...(data.improvement === false && { improvement: data.improvement }),
-    label: game.i18n.localize(data.label),
-    reference: data.reference,
-    rollMode: data.rollMode ?? "default",
-    type: data.type
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-abilities-form`,
+    window: { title: `CUSTOM_DND5E.form.${constants.ID}.title` }
   };
 }
+
+/* -------------------------------------------- */
+/*  DEFINITION                                  */
+/* -------------------------------------------- */
+
+export default {
+  configKey: "abilities",
+  constants,
+  form: AbilitiesForm,
+  configRequiresReload: true,
+  entryType: "object",
+  entry: [
+    { key: "abbreviation", localize: true },
+    { key: "defaults", conditional: "defined", transform: v => ({ ...v }) },
+    { key: "fullKey" },
+    { key: "icon", conditional: "defined" },
+    { key: "improvement", conditional: data => data?.improvement === false },
+    { key: "label", localize: true },
+    { key: "reference" },
+    { key: "rollMode", default: "default" },
+    { key: "type" }
+  ]
+};

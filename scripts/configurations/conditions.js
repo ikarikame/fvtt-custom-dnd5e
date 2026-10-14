@@ -1,7 +1,5 @@
-import { CONSTANTS } from "../constants.js";
 import {
   Logger,
-  c5eLoadTemplates,
   checkEmpty,
   executeMacro,
   registerMenu as c5eRegisterMenu,
@@ -9,11 +7,245 @@ import {
   registerSetting,
   resetDnd5eConfig,
   resetSetting } from "../utils.js";
-import { ConditionsForm } from "../forms/config-form.js";
+import { MODULE } from "../constants.js";
+import { ConfigForm } from "../forms/config-form.js";
+import { ConfigEditForm } from "../forms/config-edit-form.js";
 import { buildBloodied } from "./bloodied.js";
+import { configs } from "./registry.js";
 
-const constants = CONSTANTS.CONDITIONS;
-const configKey = "conditionTypes";
+/* -------------------------------------------- */
+/*  CONSTANTS                                   */
+/* -------------------------------------------- */
+
+export const constants = {
+  ID: "conditions",
+  MENU: {
+    KEY: "conditions-menu",
+    HINT: "CUSTOM_DND5E.menu.conditions.hint",
+    ICON: "fas fa-skull",
+    LABEL: "CUSTOM_DND5E.menu.conditions.label",
+    NAME: "CUSTOM_DND5E.menu.conditions.name"
+  },
+  SETTING: {
+    ENABLE: {
+      KEY: "enable-conditions"
+    },
+    CONFIG: {
+      KEY: "conditions"
+    }
+  },
+  UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.DOx3PrYi19dFzcA1"
+};
+export const configKey = "conditionTypes";
+
+/* -------------------------------------------- */
+/*  FORM CLASSES                                */
+/* -------------------------------------------- */
+
+/**
+ * Per-condition edit form.
+ * @extends ConfigEditForm
+ */
+class ConditionsEditForm extends ConfigEditForm {
+  /**
+   * @param {object} args
+   */
+  constructor(args) {
+    super(args);
+    this.config = configs.conditions;
+  }
+
+  /* -------------------------------------------- */
+
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-conditions-edit`,
+    window: {
+      title: "CUSTOM_DND5E.form.conditions.edit.title"
+    }
+  };
+
+  /* -------------------------------------------- */
+
+  /**
+   * Default CSS class applied to field labels.
+   * @type {string}
+   */
+  static LABEL_CLASS = "custom-dnd5e-edit-label-wide";
+
+  /* -------------------------------------------- */
+
+  /**
+   * @type {object[]}
+   */
+  static FIELDS = [
+    { legend: "CUSTOM_DND5E.details", fields: [
+      { name: "name", type: "text", label: "CUSTOM_DND5E.name", localizeValue: true },
+      { name: "img", type: "filePicker", label: "CUSTOM_DND5E.icon" },
+      { name: "reference", type: "text", label: "CUSTOM_DND5E.reference",
+        hint: "CUSTOM_DND5E.form.conditions.reference.hint" }
+    ] },
+    { legend: "CUSTOM_DND5E.levels", fields: [
+      { name: "levels", type: "number", label: "CUSTOM_DND5E.form.conditions.numberOfLevels.label",
+        hint: "CUSTOM_DND5E.form.conditions.numberOfLevels.hint" },
+      { name: "reduction.rolls", type: "number", label: "CUSTOM_DND5E.rollsReduction",
+        hint: "CUSTOM_DND5E.form.conditions.rollsReduction.hint",
+        condition: ({ key }) => key === "exhaustion" },
+      { name: "reduction.speed", type: "number", label: "CUSTOM_DND5E.speedReduction",
+        hint: "CUSTOM_DND5E.form.conditions.speedReduction.hint",
+        condition: ({ key }) => key === "exhaustion" }
+    ] },
+    { legend: "CUSTOM_DND5E.display", fields: [
+      { name: "hud", type: "checkbox", label: "CUSTOM_DND5E.includeOnHud", default: true,
+        hint: "CUSTOM_DND5E.form.conditions.hud.hint" },
+      { name: "sheet", type: "checkbox", label: "CUSTOM_DND5E.includeOnSheet",
+        hint: "CUSTOM_DND5E.form.conditions.sheet.hint" },
+      { name: "overlay", type: "checkbox", label: "CUSTOM_DND5E.overlay",
+        hint: "CUSTOM_DND5E.form.conditions.overlay.hint" }
+    ] },
+    { legend: "CUSTOM_DND5E.behaviour", fields: [
+      { name: "pseudo", type: "checkbox", label: "CUSTOM_DND5E.pseudo",
+        hint: "CUSTOM_DND5E.form.conditions.pseudo.hint" },
+      { name: "neverBlockMovement", type: "checkbox", label: "CUSTOM_DND5E.neverBlocksMovement",
+        hint: "CUSTOM_DND5E.form.conditions.neverBlockMovement.hint" },
+      { name: "special", type: "text", label: "CUSTOM_DND5E.special",
+        hint: "CUSTOM_DND5E.form.conditions.special.hint" },
+      { name: "riders", type: "multiSelect", label: "CUSTOM_DND5E.riders", choices: "riders",
+        hint: "CUSTOM_DND5E.form.conditions.riders.hint" },
+      { name: "statuses", type: "multiSelect", label: "CUSTOM_DND5E.statuses", choices: "statuses",
+        hint: "CUSTOM_DND5E.form.conditions.statuses.hint" }
+    ] },
+    { legend: "CUSTOM_DND5E.macros", fields: [
+      { name: "macroUuid", type: "macroDrop", label: "CUSTOM_DND5E.macroOnApply",
+        hint: "CUSTOM_DND5E.form.conditions.macroUuid.hint" },
+      { name: "macroDisabledUuid", type: "macroDrop", label: "CUSTOM_DND5E.macroOnRemove",
+        hint: "CUSTOM_DND5E.form.conditions.macroDisabledUuid.hint" }
+    ] }
+  ];
+
+  /* -------------------------------------------- */
+
+  /**
+   * Maximum number of per-level condition rows to render.
+   * @type {number}
+   */
+  static MAX_LEVEL_ROWS = 20;
+
+  /* -------------------------------------------- */
+
+  /**
+   * Get the select options for the form.
+   * @returns {object} Select options
+   */
+  _getSelects() {
+    const statusEffects = Object.fromEntries(
+      CONFIG.statusEffects.map(statusEffect => [statusEffect.id, statusEffect.name])
+    );
+    return { riders: statusEffects, statuses: statusEffects };
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Handle form rendering. Renders a conditions multi-select per level inside the Levels
+   * fieldset and re-renders the rows when the number of levels changes.
+   * @param {object} context
+   * @param {object} options
+   */
+  _onRender(context, options) {
+    super._onRender(context, options);
+
+    const levelsInput = this.element.querySelector('input[name$=".levels"]');
+    const fieldset = levelsInput?.closest("fieldset");
+    if ( !fieldset ) return;
+
+    this.#renderLevelConditionRows(fieldset, levelsInput.value);
+    levelsInput.addEventListener("change", () => this.#renderLevelConditionRows(fieldset, levelsInput.value));
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Render a conditions multi-select per level as direct children of the Levels fieldset,
+   * preserving current selections for levels that remain.
+   * @param {HTMLElement} fieldset
+   * @param {number|string} levels
+   */
+  #renderLevelConditionRows(fieldset, levels) {
+    levels = Math.min(Number(levels) || 0, this.constructor.MAX_LEVEL_ROWS);
+    const stored = this._getItemsData()?.[this.key]?.conditions ?? {};
+    const choices = this._getSelects()?.riders ?? {};
+    const rowClass = "custom-dnd5e-level-condition";
+
+    // Preserve the current selections before rebuilding the rows
+    const current = {};
+    fieldset.querySelectorAll(`.${rowClass} multi-select`).forEach(multiSelect => {
+      const level = multiSelect.getAttribute("name")?.split(".").pop();
+      if ( level ) current[level] = multiSelect.value;
+    });
+    fieldset.querySelectorAll(`.${rowClass}`).forEach(row => row.remove());
+
+    for ( let level = 1; level <= levels; level++ ) {
+      const selected = current[level] ?? stored[level] ?? [];
+      const options = Object.entries(choices).map(([id, name]) =>
+        `<option value="${id}"${selected.includes(id) ? " selected" : ""}>${game.i18n.localize(name)}</option>`
+      ).join("");
+
+      const group = document.createElement("div");
+      group.classList.add("form-group", rowClass);
+      group.innerHTML = `
+        <label class="${this.constructor.LABEL_CLASS}">
+            ${game.i18n.format("CUSTOM_DND5E.form.conditions.conditionsAtLevel", { level })}
+        </label>
+        <div class="form-fields">
+            <multi-select name="${this.key}.conditions.${level}">${options}</multi-select>
+        </div>`;
+      fieldset.appendChild(group);
+    }
+  }
+
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Conditions settings menu form.
+ * @extends ConfigForm
+ */
+class ConditionsForm extends ConfigForm {
+  /**
+   * Constructor for ConditionsForm.
+   */
+  constructor() {
+    super();
+    this.editForm = ConditionsEditForm;
+    this.label = "CUSTOM_DND5E.name";
+    this.listTitle = "CUSTOM_DND5E.form.conditions.listTitle";
+    this.includeConfig = false;
+    this.requiresReload = false;
+    this.config = configs.conditions;
+  }
+
+  /* -------------------------------------------- */
+
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-conditions-form`,
+    window: {
+      title: `CUSTOM_DND5E.form.${constants.ID}.title`
+    }
+  };
+
+  /* -------------------------------------------- */
+
+  async _prepareContext() {
+    const context = await super._prepareContext();
+    context.items = mergeConfig(context.items);
+    return context;
+  }
+}
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
 
 /**
  * Register settings and load templates.
@@ -24,18 +256,13 @@ export function register() {
   Hooks.on("preCreateActiveEffect", applyOverlay);
   Hooks.on("createActiveEffect", executeConditionMacro);
   Hooks.on("deleteActiveEffect", executeConditionDisabledMacro);
-
-  const templates = [
-    constants.TEMPLATE.EDIT
-  ];
-  c5eLoadTemplates(templates);
 }
 
 /* -------------------------------------------- */
 
 /**
  * Apply overlay flag to active effects for conditions configured as overlays.
- * @param {ActiveEffect} effect The active effect being created.
+ * @param {ActiveEffect} effect
  */
 function applyOverlay(effect) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
@@ -51,9 +278,9 @@ function applyOverlay(effect) {
 
 /**
  * Execute a macro when a condition with a configured macro is applied.
- * @param {ActiveEffect} effect The active effect being created.
- * @param {object} options The creation options.
- * @param {string} userId The ID of the user who created the effect.
+ * @param {ActiveEffect} effect
+ * @param {object} options
+ * @param {string} userId
  */
 async function executeConditionMacro(effect, options, userId) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
@@ -79,9 +306,9 @@ async function executeConditionMacro(effect, options, userId) {
 
 /**
  * Execute a macro when a condition with a configured disabled macro is removed.
- * @param {ActiveEffect} effect The active effect being deleted.
- * @param {object} options The deletion options.
- * @param {string} userId The ID of the user who deleted the effect.
+ * @param {ActiveEffect} effect
+ * @param {object} options
+ * @param {string} userId
  */
 async function executeConditionDisabledMacro(effect, options, userId) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
@@ -106,7 +333,7 @@ async function executeConditionDisabledMacro(effect, options, userId) {
 /* -------------------------------------------- */
 
 /**
- * Register menu.
+ * Register the conditions menu in Foundry's settings UI.
  */
 export function registerMenu() {
   c5eRegisterMenu(
@@ -152,11 +379,13 @@ function registerSettings() {
 }
 
 /* -------------------------------------------- */
+/*  CONFIG                                      */
+/* -------------------------------------------- */
 
 /**
  * Get dnd5e config.
- * @param {string|null} key The key
- * @returns {object} The conditions and status effects
+ * @param {string|null} key
+ * @returns {object} Conditions and status effects
  */
 export function getSettingDefault(key = null) {
   const data = buildData({
@@ -198,8 +427,8 @@ export async function resetConfigSetting() {
 
 /**
  * Merge data with CONFIG and setting defaults to include conditions from other modules.
- * @param {object} data The setting data
- * @returns {object} The merged data
+ * @param {object} data Setting data
+ * @returns {object} Merged data
  */
 export function mergeConfig(data) {
   const conditionTypes = foundry.utils.deepClone(CONFIG.DND5E.conditionTypes);
@@ -216,8 +445,8 @@ export function mergeConfig(data) {
 
 /**
  * Build setting data.
- * @param {object} config The config data
- * @returns {object} The setting data
+ * @param {object} config Config data
+ * @returns {object} Setting data
  */
 function buildData(config) {
   let data = foundry.utils.deepClone(
@@ -225,7 +454,7 @@ function buildData(config) {
       ? { [config.key]: config.conditionTypes[config.key] }
       : config.conditionTypes) ?? {};
 
-  if ( !config.key && getSetting(CONSTANTS.BLOODIED.SETTING.APPLY_BLOODIED.KEY) ) {
+  if ( !config.key && getSetting(configs.bloodied.SETTING.APPLY_BLOODIED.KEY) ) {
     const bloodied = buildBloodied();
 
     const conditionTypes = {};
@@ -272,10 +501,11 @@ function buildData(config) {
 
 /**
  * Set CONFIG.DND5E.conditionTypes and CONFIG.statusEffects.
- * @param {object} data The data
+ * @param {object} data
  */
-export function setConfig(data = null) {
+export function setConfig(data) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
+  data ??= getSetting(constants.SETTING.CONFIG.KEY);
 
   const properties = ["conditionTypes", "statusEffects"];
 
@@ -310,7 +540,9 @@ export function setConfig(data = null) {
         config.conditionTypes[key] = {
           img: value?.img ?? value?.icon ?? "icons/svg/hazard.svg",
           name: localisedName,
+          ...(value.conditions !== undefined && { conditions: value.conditions }),
           ...(value.levels && { levels: value.levels }),
+          ...(value.neverBlockMovement && { neverBlockMovement: value.neverBlockMovement }),
           ...(value.pseudo && { pseudo: value.pseudo }),
           ...(value.reduction !== undefined && { reduction: value.reduction }),
           ...(value.reference !== undefined && { reference: value.reference }),
@@ -336,6 +568,11 @@ export function setConfig(data = null) {
         ...(value.riders !== undefined && { riders: value.riders }),
         ...(value.statuses !== undefined && { statuses: value.statuses })
       });
+
+      if ( CONFIG.DND5E.neverBlockStatuses ) {
+        if ( value.neverBlockMovement ) CONFIG.DND5E.neverBlockStatuses.add(key);
+        else CONFIG.DND5E.neverBlockStatuses.delete(key);
+      }
     });
 
   // Apply the config to CONFIG.DND5E
@@ -349,4 +586,5 @@ export function setConfig(data = null) {
     }
   });
 
+  Hooks.callAll("customDnd5e.conditionsConfigApplied", config);
 }

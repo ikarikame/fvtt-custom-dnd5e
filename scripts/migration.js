@@ -1,5 +1,6 @@
 import { CONSTANTS, MODULE } from "./constants.js";
 import { Logger, getFlag, getSetting, setFlag, unsetFlag, setSetting, registerSetting } from "./utils.js";
+import { configs } from "./configurations/registry.js";
 import { rebuild } from "./workflows/workflows.js";
 
 const constants = CONSTANTS.MIGRATION;
@@ -55,6 +56,21 @@ export async function migrate() {
   if ( shouldRun("3.5.0") ) isSuccess &&= await migrateActorCounters();
   if ( shouldRun("4.2.0") ) isSuccess &&= await migrateDamageTypeLabels();
   if ( shouldRun("4.2.0") ) isSuccess &&= await migrateWorkflowTriggerEvents();
+  if ( shouldRun("5.1.0") ) isSuccess &&= await migrateRestTypesHitDiceFormula();
+  if ( shouldRun("5.1.0") ) isSuccess &&= await migrateTokenBorderEnable();
+  if ( shouldRun("5.3.0") ) isSuccess &&= await migrateCustomSensesToNamespace();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateBloodiedThreshold();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateArmorCalculations();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateStaleSystemLabels();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateConditionEffects();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateActivitiesClearTargets();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateConditionLevels();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateApplyDead();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateApplyMassiveDamage();
+  if ( shouldRun("5.5.0") ) isSuccess &&= await migrateSkillsPace();
+  if ( shouldRun("5.6.0") ) isSuccess &&= await migrateSensesToObjects();
+  if ( shouldRun("5.6.0") ) isSuccess &&= await migrateCustomMovementTypesToSystemData();
+  if ( shouldRun("5.6.0") ) isSuccess &&= await migrateCustomSensesToSystemData();
 
   if ( isSuccess ) {
     await setSetting(constants.VERSION.SETTING.KEY, moduleVersion);
@@ -152,7 +168,7 @@ export async function migrateRerollInitiative() {
 export async function migrateConditions() {
   try {
     Logger.debug("Migrating conditions...");
-    const conditions = foundry.utils.deepClone(getSetting(CONSTANTS.CONDITIONS.SETTING.CONFIG.KEY));
+    const conditions = foundry.utils.deepClone(getSetting(configs.conditions.SETTING.CONFIG.KEY));
 
     if ( !conditions ) return true;
 
@@ -167,7 +183,7 @@ export async function migrateConditions() {
       delete value.icon;
     }
 
-    await setSetting(CONSTANTS.CONDITIONS.SETTING.CONFIG.KEY, conditions);
+    await setSetting(configs.conditions.SETTING.CONFIG.KEY, conditions);
     Logger.debug("Conditions migrated.");
     return true;
   } catch (err) {
@@ -234,7 +250,7 @@ function cleanWorkflows(workflows) {
  *   { name, visible, actorTypes, triggers: { id: { event, operator, value, counterKey } }, actions: { id: { type, actionValue, macroUuid, counterKey, conditionId } } }
  *
  * @param {object} oldTrigger The old trigger object
- * @param {string} counterKey The counter key
+ * @param {string} counterKey
  * @param {string} counterLabel The counter label
  * @param {string[]} actorTypes The actor types this counter applies to
  * @returns {object} The new workflow object
@@ -560,7 +576,7 @@ export async function migrateDamageTypeLabels() {
   try {
     Logger.debug("Migrating damage type labels...");
 
-    const damageTypes = getSetting(CONSTANTS.DAMAGE_TYPES.SETTING.CONFIG.KEY);
+    const damageTypes = getSetting(configs.damageTypes.SETTING.CONFIG.KEY);
     if ( !damageTypes || typeof damageTypes !== "object" ) return true;
 
     const newDamageTypes = foundry.utils.deepClone(damageTypes);
@@ -579,7 +595,7 @@ export async function migrateDamageTypeLabels() {
     }
 
     if ( changed ) {
-      await setSetting(CONSTANTS.DAMAGE_TYPES.SETTING.CONFIG.KEY, newDamageTypes);
+      await setSetting(configs.damageTypes.SETTING.CONFIG.KEY, newDamageTypes);
       Logger.debug("Damage type labels migrated.");
     }
 
@@ -696,14 +712,605 @@ export async function migrateWorkflowTriggerEvents() {
 /* -------------------------------------------- */
 
 /**
+ * Migrate `hitDiceFraction` values into the `hitDiceFormula` field.
+ * Existing fractions are translated to `@attributes.hd.max * <fraction>`.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateRestTypesHitDiceFormula() {
+  try {
+    Logger.debug("Migrating rest type Hit Dice fractions to formulas...");
+
+    const restTypes = getSetting(configs.restTypes.SETTING.CONFIG.KEY);
+    if ( !restTypes || typeof restTypes !== "object" ) return true;
+
+    const cloned = foundry.utils.deepClone(restTypes);
+    let changed = false;
+
+    for ( const entry of Object.values(cloned) ) {
+      if ( !entry || typeof entry !== "object" ) continue;
+      if ( "hitDiceFraction" in entry ) {
+        const fraction = entry.hitDiceFraction;
+        if ( entry.hitDiceFormula === undefined
+          && fraction !== null
+          && fraction !== ""
+          && Number(fraction) > 0 ) {
+          entry.hitDiceFormula = `@attributes.hd.max * ${fraction}`;
+        }
+        delete entry.hitDiceFraction;
+        changed = true;
+      }
+    }
+
+    if ( changed ) {
+      await setSetting(configs.restTypes.SETTING.CONFIG.KEY, cloned);
+      Logger.debug("Rest type Hit Dice fractions migrated.");
+    }
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate rest type Hit Dice fractions: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Set Enable to true for the Token Border feature when Shape is set to Circle.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateTokenBorderEnable() {
+  try {
+    const shape = getSetting(CONSTANTS.TOKEN.SETTING.BORDER_SHAPE.KEY);
+    if ( shape !== "circle" ) return true;
+    if ( getSetting(CONSTANTS.TOKEN.SETTING.BORDER_ENABLE.KEY) ) return true;
+    Logger.debug("Enabling Token Border (existing shape = circle)...");
+    await setSetting(CONSTANTS.TOKEN.SETTING.BORDER_ENABLE.KEY, true);
+    Logger.debug("Token Border enabled.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate Token Border enable: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Move custom sense values from `flags.custom-dnd5e.<key>` into the
+ * `flags.custom-dnd5e.senses.<key>` namespace.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateCustomSensesToNamespace() {
+  try {
+    Logger.debug("Migrating custom senses to the senses namespace...");
+
+    const senses = getSetting(configs.senses.SETTING.CONFIG.KEY);
+    if ( !senses || typeof senses !== "object" ) return true;
+
+    const systemSenses = new Set(Object.keys(CONFIG.CUSTOM_DND5E?.senses ?? {}));
+    const customSenseKeys = Object.keys(senses).filter(key => !systemSenses.has(key));
+    if ( !customSenseKeys.length || !game.actors ) return true;
+
+    for ( const actor of game.actors ) {
+      for ( const key of customSenseKeys ) {
+        const oldValue = getFlag(actor, key);
+        if ( oldValue === undefined || oldValue === null ) continue;
+        if ( typeof oldValue === "object" ) continue;
+        await setFlag(actor, `senses.${key}`, oldValue);
+        await unsetFlag(actor, key);
+      }
+    }
+
+    Logger.debug("Custom senses migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate custom senses: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert the Bloodied threshold from a fraction of max HP to a percentage.
+ * In dnd5e 6.0.0, `CONFIG.DND5E.bloodied.threshold` changed from a fraction to a
+ * percentage.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateBloodiedThreshold() {
+  try {
+    const bloodied = getSetting(configs.bloodied.SETTING.CONFIG.KEY);
+    if ( !bloodied || typeof bloodied !== "object" ) return true;
+
+    const threshold = Number(bloodied.threshold);
+    if ( !Number.isFinite(threshold) || threshold > 1 ) return true;
+
+    Logger.debug("Migrating Bloodied threshold to a percentage...");
+    const cloned = foundry.utils.deepClone(bloodied);
+    cloned.threshold = Math.round(threshold * 100);
+    await setSetting(configs.bloodied.SETTING.CONFIG.KEY, cloned);
+    Logger.debug("Bloodied threshold migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate Bloodied threshold: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Remove the `flat` and `default` armor class calculations.
+ * Carry over a customized `default` formula to the `armored` calculation.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateArmorCalculations() {
+  try {
+    const armorClasses = getSetting(configs.armorCalculations.SETTING.CONFIG.KEY);
+    if ( !armorClasses || typeof armorClasses !== "object" ) return true;
+    if ( !("flat" in armorClasses) && !("default" in armorClasses) ) return true;
+
+    Logger.debug("Migrating armor class calculations...");
+    const cloned = foundry.utils.deepClone(armorClasses);
+
+    const oldDefaultFormula = "@attributes.ac.armor + @attributes.ac.dex";
+    const defaultFormula = cloned.default?.formula?.trim();
+    if ( defaultFormula && defaultFormula !== oldDefaultFormula && !cloned.armored?.formula ) {
+      cloned.armored = { ...cloned.armored, formula: defaultFormula };
+    }
+
+    delete cloned.flat;
+    delete cloned.default;
+
+    await setSetting(configs.armorCalculations.SETTING.CONFIG.KEY, cloned);
+    Logger.debug("Armor class calculations migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate armor class calculations: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Configs whose stored entries hold localization keys renamed in dnd5e 6.0.0.
+ */
+const STALE_LABEL_CONFIGS = [
+  { id: "armorCalculations", fields: ["label"] },
+  { id: "itemProperties", fields: ["label", "abbreviation"] },
+  { id: "itemRarity", fields: ["label"] }
+];
+
+/* -------------------------------------------- */
+
+/**
+ * Whether a stored value is a system localization key that no longer exists.
+ * @param {string} value
+ * @returns {boolean} Whether the value is a stale system localization key
+ */
+function isStaleSystemKey(value) {
+  return value.startsWith("DND5E.") && !game.i18n.has(value);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Replace stale system localization keys in stored configs with the current system defaults.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateStaleSystemLabels() {
+  try {
+    for ( const { id, fields } of STALE_LABEL_CONFIGS ) {
+      const config = configs[id];
+      const setting = getSetting(config.SETTING.CONFIG.KEY);
+      if ( !setting || typeof setting !== "object" ) continue;
+
+      const cloned = foundry.utils.deepClone(setting);
+      let changed = false;
+
+      for ( const [key, entry] of Object.entries(cloned) ) {
+        const systemDefault = CONFIG.CUSTOM_DND5E?.[config.configKey]?.[key];
+        if ( systemDefault === undefined ) continue;
+
+        if ( typeof entry === "string" ) {
+          if ( isStaleSystemKey(entry) && typeof systemDefault === "string" && game.i18n.has(systemDefault) ) {
+            cloned[key] = systemDefault;
+            changed = true;
+          }
+          continue;
+        }
+
+        if ( !entry || typeof entry !== "object" || entry.system === false ) continue;
+
+        for ( const field of fields ) {
+          const value = entry[field];
+          const defaultValue = (typeof systemDefault === "object") ? systemDefault?.[field] : systemDefault;
+          if ( typeof value !== "string" || !isStaleSystemKey(value) ) continue;
+          if ( typeof defaultValue !== "string" || !game.i18n.has(defaultValue) ) continue;
+          entry[field] = defaultValue;
+          changed = true;
+        }
+      }
+
+      if ( changed ) {
+        Logger.debug(`Migrating stale system labels for '${id}'...`);
+        await setSetting(config.SETTING.CONFIG.KEY, cloned);
+        Logger.debug(`Stale system labels for '${id}' migrated.`);
+      }
+    }
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate stale system labels: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * dnd5e 5.x default condition effect triggers changed in dnd5e 6.0.0.
+ */
+const OLD_CONDITION_EFFECT_DEFAULTS = {
+  noMovement: ["exhaustion-5", "grappled", "paralyzed", "petrified", "restrained", "unconscious"],
+  halfMovement: ["exhaustion-2"],
+  halfHealth: ["exhaustion-4"],
+  abilityCheckDisadvantage: ["poisoned", "exhaustion-1"],
+  abilitySaveDisadvantage: ["exhaustion-3"],
+  attackDisadvantage: ["poisoned", "exhaustion-3"]
+};
+
+/* -------------------------------------------- */
+
+/**
+ * Reset condition effect triggers that still match their dnd5e 5.x defaults.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateConditionEffects() {
+  try {
+    const setting = getSetting(configs.conditionEffects.SETTING.CONFIG.KEY);
+    if ( !setting || typeof setting !== "object" ) return true;
+
+    const cloned = foundry.utils.deepClone(setting);
+    let changed = false;
+
+    for ( const [key, oldDefaults] of Object.entries(OLD_CONDITION_EFFECT_DEFAULTS) ) {
+      const entry = cloned[key];
+      if ( !entry || !Array.isArray(entry.triggers) ) continue;
+
+      const stored = new Set(entry.triggers);
+      const old = new Set(oldDefaults);
+      if ( stored.size !== old.size || ![...stored].every(trigger => old.has(trigger)) ) continue;
+
+      entry.triggers = [...(CONFIG.CUSTOM_DND5E?.conditionEffects?.[key] ?? [])];
+      changed = true;
+    }
+
+    if ( changed ) {
+      Logger.debug("Migrating condition effect triggers...");
+      await setSetting(configs.conditionEffects.SETTING.CONFIG.KEY, cloned);
+      Logger.debug("Condition effect triggers migrated.");
+    }
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate condition effect triggers: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert the activities `clearTargetsAfterUse` checkbox to the `clearTargets` choice.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateActivitiesClearTargets() {
+  try {
+    const setting = getSetting(CONSTANTS.ACTIVITIES.SETTING.CONFIG.KEY);
+    if ( !setting || typeof setting !== "object" ) return true;
+    if ( !("clearTargetsAfterUse" in setting) && !("clearTargetsBeforeUse" in setting) ) return true;
+
+    Logger.debug("Migrating activities clear targets...");
+    const cloned = foundry.utils.deepClone(setting);
+    cloned.clearTargets ??= cloned.clearTargetsBeforeUse ? "before"
+      : cloned.clearTargetsAfterUse ? "after" : "none";
+    delete cloned.clearTargetsBeforeUse;
+    delete cloned.clearTargetsAfterUse;
+
+    await setSetting(CONSTANTS.ACTIVITIES.SETTING.CONFIG.KEY, cloned);
+    Logger.debug("Activities clear targets migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate activities clear targets: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Move condition levels from the module's `conditionLevel` flag to the D&D 5e system's native
+ * leveled conditions introduced in dnd5e 6.0.0.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateConditionLevels() {
+  try {
+    Logger.debug("Migrating condition levels...");
+
+    const migrateActorEffects = async actor => {
+      for ( const effect of Array.from(actor?.effects ?? []) ) {
+        const level = effect.getFlag(MODULE.ID, "conditionLevel");
+        if ( level === undefined ) continue;
+
+        const statusId = [...(effect.statuses ?? [])][0];
+        if ( !statusId ) {
+          await effect.unsetFlag(MODULE.ID, "conditionLevel");
+          continue;
+        }
+
+        await effect.delete();
+
+        if ( statusId === "exhaustion" && actor.system?.attributes?.exhaustion !== undefined ) {
+          await actor.update({ "system.attributes.exhaustion": Number(level) || 1 });
+          continue;
+        }
+
+        const isLeveled = Number.isFinite(CONFIG.DND5E.conditionTypes[statusId]?.levels);
+        await actor.toggleStatusEffect(statusId, isLeveled
+          ? { levels: Number(level) || 1 }
+          : { active: true });
+      }
+    };
+
+    for ( const actor of game.actors ?? [] ) {
+      await migrateActorEffects(actor);
+    }
+    for ( const scene of game.scenes ?? [] ) {
+      for ( const token of scene.tokens ) {
+        if ( !token.actorLink && token.actor ) await migrateActorEffects(token.actor);
+      }
+    }
+
+    Logger.debug("Condition levels migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate condition levels: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert the 'Apply Dead' checkbox to the 'Apply Status on 0 HP' choice.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateApplyDead() {
+  try {
+    const value = getSetting(CONSTANTS.DEAD.SETTING.APPLY_DEAD.KEY);
+    if ( ["none", "dead", "unconscious", "deadUnlessImportant"].includes(value) ) return true;
+
+    Logger.debug("Migrating apply dead...");
+    await setSetting(CONSTANTS.DEAD.SETTING.APPLY_DEAD.KEY, (value === true || value === "true") ? "dead" : "none");
+    Logger.debug("Apply dead migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate apply dead: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert the 'Apply Massive Damage' checkbox to the actor-type choice.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateApplyMassiveDamage() {
+  try {
+    const value = getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_MASSIVE_DAMAGE.KEY);
+    if ( ["neither", "character", "npc", "both"].includes(value) ) return true;
+
+    Logger.debug("Migrating apply massive damage...");
+    await setSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_MASSIVE_DAMAGE.KEY,
+      (value === true || value === "true") ? "character" : "neither");
+    Logger.debug("Apply massive damage migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate apply massive damage: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Fix the travel pace lists stored on skills.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateSkillsPace() {
+  try {
+    const settingKey = configs.skills.SETTING.CONFIG.KEY;
+    const skills = getSetting(settingKey);
+    if ( !skills || typeof skills !== "object" ) return true;
+
+    const cloned = foundry.utils.deepClone(skills);
+    let changed = false;
+
+    for ( const [key, entry] of Object.entries(cloned) ) {
+      if ( !entry || typeof entry !== "object" ) continue;
+      const systemPace = CONFIG.CUSTOM_DND5E?.skills?.[key]?.pace;
+      const storedPace = (entry.pace && typeof entry.pace === "object") ? entry.pace : {};
+
+      const pace = {};
+      for ( const [mode, list] of Object.entries(systemPace ?? {}) ) {
+        pace[mode] = Array.isArray(storedPace[mode]) ? storedPace[mode] : [...list];
+      }
+      for ( const [mode, list] of Object.entries(storedPace) ) {
+        if ( !(mode in pace) && Array.isArray(list) ) pace[mode] = list;
+      }
+
+      const next = Object.keys(pace).length ? pace : undefined;
+      if ( JSON.stringify(entry.pace) === JSON.stringify(next) ) continue;
+      if ( next ) entry.pace = next;
+      else delete entry.pace;
+      changed = true;
+    }
+
+    if ( changed ) {
+      Logger.debug("Migrating skills travel pace...");
+      await setSetting(settingKey, cloned);
+      Logger.debug("Skills travel pace migrated.");
+    }
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate skills travel pace: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert senses entries stored as plain label strings into `{ label }` objects.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateSensesToObjects() {
+  try {
+    const senses = getSetting(configs.senses.SETTING.CONFIG.KEY);
+    if ( !senses || typeof senses !== "object" ) return true;
+    if ( !Object.values(senses).some(value => typeof value === "string") ) return true;
+
+    Logger.debug("Migrating senses entries to objects...");
+    const migrated = foundry.utils.deepClone(senses);
+    for ( const [key, value] of Object.entries(migrated) ) {
+      if ( typeof value === "string" ) migrated[key] = { label: value, visible: true };
+    }
+
+    await setSetting(configs.senses.SETTING.CONFIG.KEY, migrated);
+    Logger.debug("Senses entries migrated.");
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate senses entries: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Move custom movement types and senses from flags into system data.
+ * @param {object} args
+ * @param {object} args.config
+ * @param {string} args.flagNamespace
+ * @param {string} args.systemPath
+ * @param {(value: *) => *} args.convert Changes a flag value to the type the system field expects
+ * @param {string} args.label Name used in log messages
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+async function migrateCustomKeysToSystemData({ config, flagNamespace, systemPath, convert, label }) {
+  try {
+    const setting = getSetting(config.SETTING.CONFIG.KEY);
+    if ( !setting || typeof setting !== "object" ) return true;
+
+    const systemKeys = new Set(Object.keys(CONFIG.CUSTOM_DND5E?.[config.configKey] ?? {}));
+    const customKeys = Object.keys(setting).filter(key => !systemKeys.has(key));
+    if ( !customKeys.length ) return true;
+
+    Logger.debug(`Migrating custom ${label} to system data...`);
+
+    const migrateActor = async actor => {
+      const updates = {};
+      for ( const key of customKeys ) {
+        const value = getFlag(actor, `${flagNamespace}.${key}`);
+        if ( value === undefined || value === null || value === "" ) continue;
+        if ( foundry.utils.getProperty(actor, `_source.${systemPath}.${key}`) ) continue;
+        const converted = convert(value);
+        if ( converted === undefined || converted === null ) continue;
+        updates[`${systemPath}.${key}`] = converted;
+      }
+      if ( !foundry.utils.isEmpty(updates) ) await actor.update(updates);
+      if ( getFlag(actor, flagNamespace) ) await unsetFlag(actor, flagNamespace);
+    };
+
+    for ( const actor of game.actors ?? [] ) {
+      await migrateActor(actor);
+    }
+    for ( const scene of game.scenes ?? [] ) {
+      for ( const token of scene.tokens ) {
+        if ( !token.actorLink && token.actor ) await migrateActor(token.actor);
+      }
+    }
+
+    Logger.debug(`Custom ${label} migrated.`);
+    return true;
+  } catch (err) {
+    Logger.error(`Failed to migrate custom ${label}: ${err.message}`);
+    return false;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Move custom movement types from flags into `system.attributes.movement.speeds`.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateCustomMovementTypesToSystemData() {
+  return migrateCustomKeysToSystemData({
+    config: configs.movementTypes,
+    flagNamespace: "movementTypes",
+    systemPath: "system.attributes.movement.speeds",
+    convert: value => `${value}`,
+    label: "movement types"
+  });
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Move custom senses from flags into `system.attributes.senses.ranges`.
+ * @returns {Promise<boolean>} Whether the migration was successful
+ */
+export async function migrateCustomSensesToSystemData() {
+  return migrateCustomKeysToSystemData({
+    config: configs.senses,
+    flagNamespace: "senses",
+    systemPath: "system.attributes.senses.ranges",
+    convert: value => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.round(number) : null;
+    },
+    label: "senses"
+  });
+}
+
+/* -------------------------------------------- */
+
+/**
  * All migration functions, exposed for testing via the module API.
  */
 export const migrations = {
+  migrateActivitiesClearTargets,
+  migrateApplyDead,
+  migrateApplyMassiveDamage,
   migrateActorCounters,
+  migrateArmorCalculations,
+  migrateBloodiedThreshold,
+  migrateConditionEffects,
+  migrateConditionLevels,
   migrateConditions,
   migrateAwardInspirationRollType,
+  migrateCustomMovementTypesToSystemData,
+  migrateCustomSensesToNamespace,
+  migrateCustomSensesToSystemData,
   migrateDamageTypeLabels,
   migrateRerollInitiative,
+  migrateRestTypesHitDiceFormula,
   migrateRollMode,
+  migrateSensesToObjects,
+  migrateSkillsPace,
+  migrateStaleSystemLabels,
+  migrateTokenBorderEnable,
   migrateWorkflowTriggerEvents
 };

@@ -1,12 +1,7 @@
 import { CONSTANTS, MODULE } from "./constants.js";
-import { COLOR_SPLIT_FS } from "./shaders/color-split.js";
-import { FIRE_VS, FIRE_FS } from "./shaders/fire.js";
-import { LIGHT_RAYS_VS, LIGHT_RAYS_FS } from "./shaders/light-rays.js";
-import { SPLATTER_VS, SPLATTER_FS } from "./shaders/splatter.js";
-import { WAVE_FS } from "./shaders/wave.js";
 
 /* -------------------------------------------- */
-/*  Logging                                     */
+/*  LOGGING                                     */
 /* -------------------------------------------- */
 
 /** Console logger. */
@@ -48,7 +43,7 @@ export class Logger {
     } catch {
       return;
     }
-    if ( !data ) {
+    if ( data === undefined ) {
       console.log(`${MODULE.NAME} Debug | ${message}`);
       return;
     }
@@ -58,7 +53,7 @@ export class Logger {
 }
 
 /* -------------------------------------------- */
-/*  General Utilities                           */
+/*  GENERAL UTILITIES                           */
 /* -------------------------------------------- */
 
 /**
@@ -68,6 +63,18 @@ export class Logger {
  */
 export function checkEmpty(data) {
   return (data && typeof data === "object" && !Object.keys(data).length) || (data !== false && !data);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether a value looks like a localization key (e.g. `DND5E.DAMAGE.Type.Acid`) that no longer resolves,
+ * as happens when the system renames its keys between versions.
+ * @param {*} value
+ * @returns {boolean}
+ */
+export function isUnresolvedI18nKey(value) {
+  return typeof value === "string" && /^[A-Z][A-Z0-9_]*\.\S+$/.test(value) && !game.i18n.has(value);
 }
 
 /* -------------------------------------------- */
@@ -104,12 +111,37 @@ export function parseBoolean(value) {
 /* -------------------------------------------- */
 
 /**
+ * Convert a value into a number.
+ * @param {*} value
+ * @returns {number|null}
+ */
+export function parseNumber(value) {
+  if ( value === "" || value === null || value === undefined ) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Convert a value into a whole number, rounding down.
+ * @param {*} value
+ * @returns {number|null}
+ */
+export function parseInteger(value) {
+  const number = parseNumber(value);
+  return (number === null) ? null : Math.floor(number);
+}
+
+/* -------------------------------------------- */
+
+/**
  * Resolve a formula string containing @attribute paths against an entity's roll data.
  * Supports plain numbers, attribute paths (e.g. @scale.monk.ki-points) and
  * calculations (e.g. @abilities.str.value / 2).
- * @param {object} entity The entity.
- * @param {string|number} formula The formula.
- * @returns {number|null} The resolved numeric value, or null if resolution fails
+ * @param {object} entity
+ * @param {string|number} formula
+ * @returns {number|null} Resolved numeric value, or null if resolution fails
  */
 export function resolveFormula(entity, formula) {
   if ( typeof formula === "number" ) return formula;
@@ -130,7 +162,7 @@ export function resolveFormula(entity, formula) {
 /**
  * Compare a value against a target using the given operator.
  * @param {number} value
- * @param {string} operator "eq", "lt", "gt", "neq"
+ * @param {"eq"|"lt"|"gt"|"neq"} operator
  * @param {number} target
  * @returns {boolean}
  */
@@ -163,7 +195,7 @@ export function getOperatorChoices() {
 }
 
 /* -------------------------------------------- */
-/*  Settings                                    */
+/*  SETTINGS                                    */
 /* -------------------------------------------- */
 
 /**
@@ -240,7 +272,7 @@ export function getDefaultSetting(key) {
 export async function setSetting(key, value) {
   if ( game.settings.settings.has(`${MODULE.ID}.${key}`) ) {
     await game.settings.set(MODULE.ID, key, value);
-    Logger.debug(`Setting '${key}' set to '${value}'`);
+    Logger.debug(`Setting '${key}' set to`, value);
   } else {
     Logger.debug(`Setting '${key}' not found`);
   }
@@ -258,7 +290,7 @@ export async function resetSetting(key) {
     const value = setting.default;
     if ( value !== undefined ) {
       await game.settings.set(MODULE.ID, key, value);
-      Logger.debug(`Setting '${key}' reset to '${value}'`);
+      Logger.debug(`Setting '${key}' reset to`, value);
     } else {
       Logger.debug(`Setting '${key}' default not defined`);
     }
@@ -294,14 +326,14 @@ export function getDnd5eSetting(key, defaultValue = null) {
 export async function setDnd5eSetting(key, value) {
   if ( game.settings.settings.has(`dnd5e.${key}`) ) {
     await game.settings.set("dnd5e", key, value);
-    Logger.debug(`Setting '${key}' set to '${value}'`);
+    Logger.debug(`Setting '${key}' set to`, value);
   } else {
     Logger.debug(`Setting '${key}' not found`);
   }
 }
 
 /* -------------------------------------------- */
-/*  Flags                                       */
+/*  FLAGS                                       */
 /* -------------------------------------------- */
 
 /**
@@ -313,6 +345,27 @@ export async function setDnd5eSetting(key, value) {
 export function getFlag(entity, key) {
   const flag = entity.getFlag(MODULE.ID, key);
   return (flag || flag === 0) ? flag : null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether negative HP applies to an actor.
+ * @param {object} actor
+ * @param {object} [options]
+ * @param {boolean} [options.includeInstantDeath=true] Whether 'Apply Instant Death' also enables
+ *   negative HP for non-NPC actors
+ * @param {string} [options.override] Resolve using this override value instead of the actor's
+ *   stored flag
+ * @returns {boolean} Whether negative HP applies
+ */
+export function hasNegativeHp(actor, { includeInstantDeath = true, override } = {}) {
+  override ??= actor ? getFlag(actor, "negativeHp") : null;
+  if ( override === "on" ) return true;
+  if ( override === "off" ) return false;
+  if ( actor?.type === "npc" ) return getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP_NPC.KEY);
+  return getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP.KEY)
+    || (includeInstantDeath && getSetting(CONSTANTS.DEAD.SETTING.APPLY_INSTANT_DEATH.KEY));
 }
 
 /* -------------------------------------------- */
@@ -343,7 +396,7 @@ export async function unsetFlag(entity, key) {
 }
 
 /* -------------------------------------------- */
-/*  Config                                      */
+/*  CONFIG                                      */
 /* -------------------------------------------- */
 
 /**
@@ -363,18 +416,58 @@ export function getDefaultDnd5eConfig(property, key = null) {
 /* -------------------------------------------- */
 
 /**
+ * Assign data to a `CONFIG.DND5E` property, mutating the existing object in place when possible.
+ * @param {string} property
+ * @param {object} data
+ * @returns {object}
+ */
+export function assignDnd5eConfig(property, data) {
+  const current = CONFIG.DND5E[property];
+  if ( foundry.utils.getType(current) === "Object" && foundry.utils.getType(data) === "Object" ) {
+    for ( const key of Object.keys(current) ) delete current[key];
+    Object.assign(current, data);
+    return current;
+  }
+  CONFIG.DND5E[property] = data;
+  return CONFIG.DND5E[property];
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Resolve any i18n keys in config data in place.
+ * @param {*} data
+ * @returns {*} Data with i18n keys resolved
+ */
+export function localizeConfigData(data) {
+  if ( typeof data === "string" ) {
+    return (/^[A-Z][A-Z0-9_]*\.\S+$/.test(data) && game.i18n.has(data))
+      ? game.i18n.localize(data)
+      : data;
+  }
+  if ( Array.isArray(data) ) return data.map(localizeConfigData);
+  if ( foundry.utils.getType(data) === "Object" ) {
+    for ( const [key, value] of Object.entries(data) ) data[key] = localizeConfigData(value);
+  }
+  return data;
+}
+
+/* -------------------------------------------- */
+
+/**
  * Reset the dnd5e config to its default.
  * @param {string} property
  * @returns {object}
  */
 export function resetDnd5eConfig(property) {
-  CONFIG.DND5E[property] = foundry.utils.deepClone(CONFIG.CUSTOM_DND5E[property]);
+  const defaults = localizeConfigData(foundry.utils.deepClone(CONFIG.CUSTOM_DND5E[property]));
+  const result = assignDnd5eConfig(property, defaults);
   Logger.debug(`Config 'CONFIG.DND5E.${property}' reset to default`);
-  return CONFIG.DND5E[property];
+  return result;
 }
 
 /* -------------------------------------------- */
-/*  Documents & Templates                       */
+/*  DOCUMENTS & TEMPLATES                       */
 /* -------------------------------------------- */
 
 /**
@@ -383,6 +476,10 @@ export function resetDnd5eConfig(property) {
  */
 export async function openDocument(uuid) {
   const document = await fromUuid(uuid);
+  if ( !document ) {
+    Logger.error(`Document '${uuid}' not found`, true);
+    return;
+  }
   if ( document instanceof JournalEntryPage ) {
     document.parent.sheet.render(true, {pageId: document.id, anchor: undefined});
   } else {
@@ -414,6 +511,17 @@ export async function addHelpButton(element, uuid) {
   button.setAttribute("data-action", "help");
   button.addEventListener("click", () => openDocument(uuid));
   windowHeader.insertBefore(button, closeButton);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get the markup for the icon that marks an element as injected by this module.
+ * @returns {string} Icon HTML or an empty string for anyone but the GM
+ */
+export function getModuleMarker() {
+  if ( !game.user?.isGM ) return "";
+  return `<i class="custom-dnd5e-module-marker fa-solid fa-plug" data-tooltip="${MODULE.NAME}" aria-label="${MODULE.NAME}"></i>`;
 }
 
 /* -------------------------------------------- */
@@ -491,7 +599,7 @@ export async function executeMacro(uuid, args = {}) {
 }
 
 /* -------------------------------------------- */
-/*  Dice & Rolls                                */
+/*  DICE & ROLLS                                */
 /* -------------------------------------------- */
 
 /**
@@ -558,8 +666,6 @@ function areKeysPressed(event, action) {
     if ( b.modifiers.length ) return false;
     return activeModifiers[b.key];
   });
-  const downKeys = [...game.keyboard.downKeys];
-  Logger.debug(`Getting key pressed for ${action}`, { event, downKeys, isPressed });
   return isPressed;
 }
 
@@ -590,7 +696,7 @@ export function calculateAttackBonus(activity) {
  * @returns {number} Probability between 0 and 1
  */
 export function calculateHitProbability(advantageMode, attackBonus, targetNumber = 20) {
-  const rollNeeded = Math.max(1, targetNumber - attackBonus);
+  const rollNeeded = Math.clamp(targetNumber - attackBonus, 1, 21);
   switch (advantageMode) {
     case "advantage":
       const failChance = (rollNeeded - 1) / 20;
@@ -604,7 +710,31 @@ export function calculateHitProbability(advantageMode, attackBonus, targetNumber
 }
 
 /* -------------------------------------------- */
-/*  Actors & Tokens                             */
+
+/**
+ * Whether any key combination bound to one of this module's keybindings is currently held down.
+ * @param {string} action
+ * @param {Event} [event]
+ * @returns {boolean} Whether the keybinding is held
+ */
+export function isKeybindingHeld(action, event) {
+  const bindings = game.keybindings.get(MODULE.ID, action) ?? [];
+  const isKeyEvent = ["keydown", "keyup"].includes(event?.type);
+  const modifierStates = (event && ("shiftKey" in event))
+    ? { CONTROL: event.ctrlKey || event.metaKey, SHIFT: event.shiftKey, ALT: event.altKey }
+    : null;
+
+  return bindings.some(binding => {
+    const isKeyDown = (isKeyEvent && (event.code === binding.key))
+      ? event.type === "keydown"
+      : game.keyboard.downKeys.has(binding.key);
+    return isKeyDown && (binding.modifiers ?? []).every(modifier => modifierStates?.[modifier]
+      ?? game.keyboard.isModifierActive(modifier));
+  });
+}
+
+/* -------------------------------------------- */
+/*  ACTORS & TOKENS                             */
 /* -------------------------------------------- */
 
 /**
@@ -616,6 +746,21 @@ export function calculateHitProbability(advantageMode, attackBonus, targetNumber
 export function getActorOwnerIds(actor) {
   const owners = game.users.filter(u => !u.isGM && actor.testUserPermission(u, "OWNER"));
   return owners.length ? owners.map(u => u.id) : [game.user.id];
+}
+
+/* -------------------------------------------- */
+
+/**
+ * WWhether the user is the primary handler of a document.
+ * @param {Document} [document]
+ * @returns {boolean}
+ */
+export function isPrimaryHandler(document) {
+  const activeGM = game.users.activeGM;
+  if ( activeGM ) return activeGM.id === game.user.id;
+  if ( !document ) return game.user.isGM;
+  const owner = game.users.find(u => u.active && document.testUserPermission(u, "OWNER"));
+  return owner?.id === game.user.id;
 }
 
 /* -------------------------------------------- */
@@ -688,7 +833,7 @@ export async function unmakeUnconscious(actor) {
  */
 export async function makeDead(actor, data = null) {
   Logger.debug("Making Dead...", actor);
-  const applyNegativeHp = getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP.KEY);
+  const applyNegativeHp = hasNegativeHp(actor, { includeInstantDeath: false });
   if ( data ) {
     if ( !applyNegativeHp ) {
       if ( data["system.attributes.hp.value"] !== undefined ) {
@@ -726,6 +871,73 @@ export async function unmakeDead(actor) {
   const effect = actor.effects.get("dnd5edead0000000");
   await effect?.delete();
   Logger.debug("Dead unmade", actor);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Create a D&D 5e request chat message prompting an actor to make a saving throw.
+ * Clicking the message's button rolls the save for the target actor and links the
+ * roll back to the request via the 'dnd5e.requestResult' flag.
+ * @param {object} options
+ * @param {object} options.actor
+ * @param {string} options.ability
+ * @param {number} options.dc Saving throw DC
+ * @param {string} options.content Message content
+ * @param {string} options.source Source flag for tracing the result
+ * @returns {Promise<ChatMessage>} Created chat message
+ */
+export async function createSaveRequestMessage({ actor, ability, dc, content, source }) {
+  let label = game.i18n.format("EDITOR.DND5E.Inline.DC", {
+    dc,
+    check: game.i18n.localize(CONFIG.DND5E.abilities[ability]?.label ?? ability)
+  });
+  label = game.i18n.format("EDITOR.DND5E.Inline.SaveLong", { save: label });
+
+  return ChatMessage.create({
+    content,
+    speaker: ChatMessage.getSpeaker({ user: game.user }),
+    system: {
+      button: {
+        icon: "fa-solid fa-shield-heart",
+        label
+      },
+      data: { ability, target: dc },
+      handler: "save",
+      targets: [{ actor: actor.uuid }]
+    },
+    type: "request",
+    flags: { [MODULE.ID]: { source } }
+  });
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get the request chat message that originated a rolled saving throw.
+ * @param {object[]} rolls Rolls from the 'dnd5e.rollSavingThrow' hook
+ * @returns {ChatMessage|undefined} Originating request message, if found
+ */
+export function getSaveRequestMessage(rolls) {
+  const rollMessage = rolls?.[0]?.parent;
+  return game.messages.get(rollMessage?.getFlag?.("dnd5e", "requestResult")?.requestId)
+    ?? rollMessage?.getOriginatingMessage?.()
+    ?? game.messages.get(rolls?.[0]?.options?.originatingMessage);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * If the 'Apply Status on 0 HP' setting is set, set the D&D 5e system's 'Auto-Apply Downed'
+ * setting to 'Never' to avoid both the module and the system applying statuses on 0 HP.
+ */
+export async function syncAutoApplyDowned() {
+  if ( !game.user.isGM ) return;
+  const applyDead = getSetting(CONSTANTS.DEAD.SETTING.APPLY_DEAD.KEY);
+  if ( !applyDead || applyDead === "none" ) return;
+  if ( game.settings.get("dnd5e", "autoApplyDowned") === "none" ) return;
+  await game.settings.set("dnd5e", "autoApplyDowned", "none");
+  Logger.debug("System's 'Auto-Apply Downed' setting set to 'Never'");
 }
 
 /* -------------------------------------------- */
@@ -814,6 +1026,50 @@ export async function untintToken(token) {
 }
 
 /* -------------------------------------------- */
+
+/**
+ * Locate the topmost token at the given canvas world-space coordinates.
+ * @param {number} x
+ * @param {number} y
+ * @returns {Token|null}
+ */
+export function findTargetTokenAt(x, y) {
+  if ( !canvas?.tokens?.quadtree ) return null;
+  const rect = new PIXI.Rectangle(x, y, 0, 0);
+  const collisionTest = ({ t }) => t.visible && t.renderable && t.interactive
+    && t.hitArea?.contains(x - t.x, y - t.y);
+  const matches = [...canvas.tokens.quadtree.getObjects(rect, { collisionTest })]
+    .sort((a, b) => a._lastSortedIndex - b._lastSortedIndex);
+  return matches.at(0) ?? null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get a token's center based on its document's `_source`.
+ * @param {Token|TokenDocument} token
+ * @returns {{x: number, y: number}|null}
+ */
+export function getTokenSourceCenter(token) {
+  const doc = token?.document ?? token;
+  return doc?._source ? doc.getCenterPoint(doc._source) : null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Measure distance between two points.
+ * @param {{x: number, y: number}} from
+ * @param {{x: number, y: number}} to
+ * @returns {number} Distance in scene units (e.g. feet).
+ */
+export function measureDistance(from, to) {
+  const grid = canvas.grid;
+  if ( !grid ) return Infinity;
+  return grid.measurePath([grid.getOffset(from), grid.getOffset(to)]).distance;
+}
+
+/* -------------------------------------------- */
 /*  UI                                          */
 /* -------------------------------------------- */
 
@@ -821,19 +1077,22 @@ export async function untintToken(token) {
  * Hide all open application windows overlaying the canvas.
  * @param {object} [options]
  * @param {number} [options.duration=200] Fade duration in milliseconds
+ * @param {(app: ApplicationV2) => boolean} [options.exclude] Predicate; apps for
+ *   which this returns true are left visible.
  * @returns {Promise<Function>} A function that restores the hidden applications
  */
-export async function hideApplications({ duration = 200 } = {}) {
+export async function hideApplications({ duration = 200, exclude } = {}) {
   const hidden = [];
 
   for ( const app of foundry.applications.instances.values() ) {
     if ( !app.rendered || !app.element ) continue;
     if ( app.element.ownerDocument.defaultView !== window ) continue;
     if ( !app.options.window?.frame ) continue;
+    if ( exclude?.(app) ) continue;
     hidden.push(app);
   }
 
-  await Promise.all(hidden.map(app =>
+  await Promise.allSettled(hidden.map(app =>
     app.element.animate([{ opacity: 1 }, { opacity: 0 }], { duration, fill: "forwards" }).finished
   ));
 
@@ -843,7 +1102,7 @@ export async function hideApplications({ duration = 200 } = {}) {
   }
 
   return async () => {
-    await Promise.all(hidden.filter(app => app.element).map(app => {
+    await Promise.allSettled(hidden.filter(app => app.element).map(app => {
       app.element.style.display = "";
       return app.element.animate([{ opacity: 0 }, { opacity: 1 }], { duration }).finished;
     }));
@@ -851,1102 +1110,202 @@ export async function hideApplications({ duration = 200 } = {}) {
 }
 
 /* -------------------------------------------- */
-/*  Animations                                  */
-/* -------------------------------------------- */
 
 /**
- * Check whether a socket is needed to reach the given user IDs.
- * @param {string[]} userIds
- * @returns {boolean}
- */
-function requiresSocket(userIds) {
-  return userIds.some(id => id !== game.user.id);
-}
-
-/**
- * Parse hex color string to RGB floats array.
- * @param {string} hex
- * @returns {number[]}
- */
-function parseHexColor(hex) {
-  return [
-    parseInt(hex.slice(1, 3), 16) / 255,
-    parseInt(hex.slice(3, 5), 16) / 255,
-    parseInt(hex.slice(5, 7), 16) / 255
-  ];
-}
-
-/**
- * Compile a WebGL shader from source.
- * @param {WebGLRenderingContext} gl
- * @param {number} type
- * @param {string} source
- * @returns {WebGLShader}
- */
-function compileShader(gl, type, source) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  return shader;
-}
-
-/* -------------------------------------------- */
-
-/** Animation functions. */
-export const animations = {};
-
-/** Set of active animation handles. */
-const _activeAnimations = new Set();
-
-/** Maximum number of concurrent animations before auto-stopping. */
-const MAX_CONCURRENT_ANIMATIONS = 10;
-
-/** Timer ID for the stop-button delay. */
-let _stopButtonTimer = null;
-
-/** DOM reference to the stop button element. */
-let _stopButtonElement = null;
-
-/* -------------------------------------------- */
-
-/**
- * Create a tracking handle, add it to the active set,
- * and start the 5-second stop-button timer if this is the first animation.
- * @returns {{ cancelled: boolean }}
- */
-function _trackAnimation() {
-  if ( _activeAnimations.size >= MAX_CONCURRENT_ANIMATIONS ) {
-    Logger.error("Too many concurrent animations. Stopping all animations.");
-    animations.stopAll();
-  }
-  const handle = { cancelled: false };
-  _activeAnimations.add(handle);
-  if ( _activeAnimations.size === 1 ) {
-    _stopButtonTimer = setTimeout(_showStopButton, 5000);
-  }
-  return handle;
-}
-
-/* -------------------------------------------- */
-
-/**
- * Remove a tracking handle from the active set.
- * Hide the stop button and clear the timer when no animations remain.
- * @param {{ cancelled: boolean }} handle
- */
-function _untrackAnimation(handle) {
-  _activeAnimations.delete(handle);
-  if ( _activeAnimations.size === 0 ) _hideStopButton();
-}
-
-/* -------------------------------------------- */
-
-/**
- * Create and display the stop animationsbutton.
- */
-function _showStopButton() {
-  if ( _stopButtonElement ) return;
-  const btn = document.createElement("button");
-  btn.setAttribute("data-custom-dnd5e", "stop-animations");
-  btn.setAttribute("data-tooltip", game.i18n.localize("CUSTOM_DND5E.animation.stopAll"));
-  btn.innerHTML = '<i class="fas fa-stop"></i>';
-  btn.addEventListener("click", () => animations.stopAll());
-  document.body.appendChild(btn);
-  _stopButtonElement = btn;
-}
-
-/* -------------------------------------------- */
-
-/**
- * Remove the stop animations button from the DOM and clear the timer.
- */
-function _hideStopButton() {
-  if ( _stopButtonTimer ) {
-    clearTimeout(_stopButtonTimer);
-    _stopButtonTimer = null;
-  }
-  if ( _stopButtonElement ) {
-    const btn = _stopButtonElement;
-    _stopButtonElement = null;
-    btn.classList.add("fade-out");
-    btn.addEventListener("animationend", () => btn.remove(), { once: true });
-  }
-}
-
-/* -------------------------------------------- */
-
-/**
- * Whether any animations are currently active.
- * @returns {boolean}
- */
-animations.hasActive = function() {
-  return _activeAnimations.size > 0;
-};
-
-/* -------------------------------------------- */
-
-/**
- * Stop all running animations immediately.
+ * Managed wrapper around {@link hideApplications}. Returns a `{ hide, restore }`
+ * pair that hides apps while a drag/placement is active, and restore them on exit.
  * @param {object} [options]
- * @param {boolean} [options.emit=false] Whether to emit a socket event to stop animations on other clients.
+ * @param {(app: ApplicationV2) => boolean} [options.exclude] Forwarded to
+ *   {@link hideApplications}; apps for which this returns true stay visible.
+ * @returns {{hide: () => void, restore: () => Promise<void>}}
  */
-animations.stopAll = function({ emit = false } = {}) {
-  for ( const handle of _activeAnimations ) handle.cancelled = true;
-  _activeAnimations.clear();
-
-  // Terminate CanvasAnimation-based animations
-  CanvasAnimation.terminateAnimation("custom-dnd5e.shakeCanvas");
-  CanvasAnimation.terminateAnimation("custom-dnd5e.flashCanvas.in");
-  CanvasAnimation.terminateAnimation("custom-dnd5e.flashCanvas.out");
-
-  // Cancel CSS web animations on marked elements
-  for ( const el of document.querySelectorAll("[data-custom-dnd5e-animation]") ) {
-    for ( const anim of el.getAnimations() ) anim.cancel();
-  }
-
-  _hideStopButton();
-
-  if ( emit ) {
-    game.socket.emit(`module.${MODULE.ID}`, { action: "stopAnimations" });
-  }
-};
-
-/* -------------------------------------------- */
-
-/**
- * Shake the canvas with decaying intensity.
- * @param {object} [options]
- * @param {number} [options.intensity=25]
- * @param {number} [options.duration=500]
- */
-animations.shakeCanvas = async function({ intensity = 25, duration = 500 } = {}) {
-  if ( !canvas?.stage ) return;
-  const origin = { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y };
-  const scale = canvas.stage.scale.x || 1;
-  const handle = _trackAnimation();
-
-  await CanvasAnimation.animate([], {
-    name: "custom-dnd5e.shakeCanvas",
-    duration,
-    ontick: (dt, animation) => {
-      const progress = animation.time / duration;
-      const decay = Math.pow(1 - progress, 2);
-      const adjusted = intensity / scale;
-      canvas.stage.pivot.x = origin.x + ((Math.random() - 0.5) * adjusted * decay);
-      canvas.stage.pivot.y = origin.y + ((Math.random() - 0.5) * adjusted * decay);
+export function createAppHider({ exclude } = {}) {
+  let promise = null;
+  return {
+    hide() {
+      if ( promise ) return;
+      promise = hideApplications({ exclude });
+    },
+    async restore() {
+      if ( !promise ) return;
+      const pending = promise;
+      promise = null;
+      const restorer = await pending;
+      await restorer();
     }
-  });
-
-  canvas.stage.pivot.set(origin.x, origin.y);
-  _untrackAnimation(handle);
-};
+  };
+}
 
 /* -------------------------------------------- */
 
 /**
- * Flash the canvas with a color overlay.
- * Skipped when photosensitive mode is enabled.
- * @param {object} [options]
- * @param {number} [options.color=0xFF0000]
- * @param {number} [options.opacity=0.4]
- * @param {number} [options.duration=500]
+ * Find the open ApplicationV2 instance whose root element contains the nearest
+ * ancestor of `target` matching `selector`. Returns null if `target` isn't
+ * inside such an element, or if no open app owns it.
+ * @param {EventTarget|null} target
+ * @param {string} selector CSS selector for the app root (e.g. a class on the form).
+ * @returns {ApplicationV2|null}
  */
-animations.flashCanvas = async function({ color = 0xFF0000, opacity = 0.4, duration = 500 } = {}) {
-  if ( !canvas?.interface ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
-
-  const scale = canvas.stage.scale.x || 1;
-  const { x: pivotX, y: pivotY } = canvas.stage.pivot;
-  const w = canvas.app.screen.width / scale;
-  const h = canvas.app.screen.height / scale;
-
-  const flash = new PIXI.Graphics();
-  flash.beginFill(color);
-  flash.drawRect(pivotX - (w / 2), pivotY - (h / 2), w, h);
-  flash.endFill();
-  flash.alpha = 0;
-  canvas.interface.addChild(flash);
-
-  const fadeIn = duration * 0.2;
-  const fadeOut = duration * 0.8;
-  const handle = _trackAnimation();
-
-  await CanvasAnimation.animate(
-    [{ parent: flash, attribute: "alpha", to: opacity }],
-    { duration: fadeIn, name: "custom-dnd5e.flashCanvas.in" }
-  );
-  if ( !handle.cancelled ) {
-    await CanvasAnimation.animate(
-      [{ parent: flash, attribute: "alpha", to: 0 }],
-      { duration: fadeOut, name: "custom-dnd5e.flashCanvas.out" }
-    );
+export function findAppForElement(target, selector) {
+  const el = target?.closest?.(selector);
+  if ( !el ) return null;
+  for ( const app of foundry.applications.instances.values() ) {
+    if ( app.element === el || app.element?.contains?.(el) ) return app;
   }
+  return null;
+}
 
-  canvas.interface.removeChild(flash);
-  flash.destroy();
-  _untrackAnimation(handle);
-};
-
+/* -------------------------------------------- */
+/*  QUERIES                                     */
 /* -------------------------------------------- */
 
 /**
- * Shake the entire screen with decaying intensity.
- * @param {object} [options]
- * @param {number} [options.intensity=5]
- * @param {number} [options.duration=500]
- * @param {string[]} [options.userIds] Only play for these users
+ * Request another user's client to do something.
+ * @param {User} user
+ * @param {string} name
+ * @param {object} data
+ * @returns {Promise<*>} Response from the user
  */
-animations.shakeScreen = async function({ intensity = 5, duration = 500, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, { action: "animation", type: "shakeScreen", options: { intensity, duration, userIds } });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  const element = document.body;
-  const decayDuration = Math.min(duration, 1000);
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = elapsed / duration;
-
-      if ( progress >= 1 || handle.cancelled ) {
-        element.style.transform = "";
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      const decayProgress = Math.min(elapsed / decayDuration, 1);
-      const decay = Math.pow(1 - decayProgress, 2);
-      const x = (Math.random() - 0.5) * intensity * decay;
-      const y = (Math.random() - 0.5) * intensity * decay;
-      element.style.transform = `translate(${x}px, ${y}px)`;
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Flash the entire screen with a color overlay.
- * Skipped when photosensitive mode is enabled.
- * @param {object} [options]
- * @param {string} [options.color="#ff0000"]
- * @param {number} [options.opacity=0.4]
- * @param {number} [options.fadeIn] Fade-in ms.
- * @param {number} [options.duration=500] Hold ms (or total when fadeIn/fadeOut omitted).
- * @param {number} [options.fadeOut] Fade-out ms.
- * @param {number} [options.zIndex=10000] CSS z-index for the overlay element.
- * @param {string[]} [options.userIds] Only play for these users.
- */
-animations.flashScreen = async function({ color = "#ff0000", opacity = 0.4, fadeIn, duration = 500, fadeOut, zIndex = 10000, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "flashScreen", options: { color, opacity, fadeIn, duration, fadeOut, zIndex, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
-
-  const flash = document.createElement("div");
-  flash.setAttribute("data-custom-dnd5e-animation", "");
-  flash.style.cssText = `
-    position: fixed;
-    inset: 0;
-    background: ${color};
-    opacity: 0;
-    pointer-events: none;
-    z-index: ${zIndex};
-  `;
-  document.body.appendChild(flash);
-
-  const explicitTiming = fadeIn !== undefined || fadeOut !== undefined;
-  const fadeInMs = fadeIn ?? Math.min(duration * 0.2, 200);
-  const fadeOutMs = fadeOut ?? Math.min(duration * 0.8, 800);
-  const holdMs = explicitTiming ? duration : 0;
-  const handle = _trackAnimation();
-
+export async function queryUser(user, name, data) {
   try {
-    await flash.animate(
-      [{ opacity: 0 }, { opacity }],
-      { duration: fadeInMs, fill: "forwards" }
-    ).finished;
-    if ( !handle.cancelled && holdMs > 0 ) {
-      await flash.animate(
-        [{ opacity }, { opacity }],
-        { duration: holdMs, fill: "forwards" }
-      ).finished;
-    }
-    if ( !handle.cancelled ) {
-      await flash.animate(
-        [{ opacity }, { opacity: 0 }],
-        { duration: fadeOutMs, fill: "forwards" }
-      ).finished;
-    }
-  } catch {
-    // Animation was cancelled via stopAll
-  } finally {
-    flash.remove();
-    _untrackAnimation(handle);
+    return await user.query(`${MODULE.ID}.${name}`, data);
+  } catch ( err ) {
+    ui.notifications.warn(game.i18n.format("CUSTOM_DND5E.query.failed", { name: user.name, error: err.message }));
   }
-};
+}
 
 /* -------------------------------------------- */
 
 /**
- * Blur the entire screen.
- * @param {object} [options]
- * @param {number} [options.intensity=5]
- * @param {number} [options.fadeIn] Fade-in ms.
- * @param {number} [options.duration=1500] Hold ms (or total when fadeIn/fadeOut omitted).
- * @param {number} [options.fadeOut] Fade-out ms. Default: min(duration × 0.5, 1000).
- * @param {string[]} [options.userIds] Only play for these users.
+ * Request the active GM's client to do something.
+ * @param {string} name
+ * @param {object} data
+ * @returns {Promise<*>} Response from the GM, or undefined if there was no GM or the query failed
  */
-animations.blurScreen = async function({ intensity = 5, fadeIn, duration = 1500, fadeOut, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "blurScreen", options: { intensity, fadeIn, duration, fadeOut, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  const element = document.body;
-
-  const explicitTiming = fadeIn !== undefined || fadeOut !== undefined;
-  const fadeInMs = fadeIn ?? Math.min(duration * 0.5, 500);
-  const fadeOutMs = fadeOut ?? Math.min(duration * 0.5, 1000);
-  const holdMs = explicitTiming ? duration : 0;
-  const totalMs = explicitTiming ? fadeInMs + holdMs + fadeOutMs : duration;
-
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-
-      if ( elapsed >= totalMs || handle.cancelled ) {
-        element.style.filter = "";
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      let env;
-      if ( elapsed < fadeInMs ) env = elapsed / fadeInMs;
-      else if ( elapsed > totalMs - fadeOutMs ) env = (totalMs - elapsed) / fadeOutMs;
-      else env = 1.0;
-      env = Math.max(0, Math.min(1, env));
-
-      const blur = intensity * env;
-      element.style.filter = `blur(${blur}px)`;
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Blur the game canvas using a PIXI BlurFilter.
- * @param {object} [options]
- * @param {number} [options.intensity=5]
- * @param {number} [options.duration=1500]
- * @param {string[]} [options.userIds] Only play for these users
- */
-animations.blurCanvas = async function({ intensity = 5, duration = 1500, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "blurCanvas", options: { intensity, duration, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( typeof canvas === "undefined" || !canvas?.stage ) return;
-
-  const filter = new PIXI.BlurFilter(0);
-
-  if ( !canvas.stage.filterArea ) {
-    canvas.stage.filterArea = canvas.app.renderer.screen;
-  }
-
-  const existing = canvas.stage.filters || [];
-  canvas.stage.filters = [...existing, filter];
-
-  const fadeIn = Math.min(duration * 0.5, 500);
-  const fadeOut = Math.min(duration * 0.5, 1000);
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      if ( progress >= 1.0 || handle.cancelled ) {
-        canvas.stage.filters = (canvas.stage.filters || []).filter(f => f !== filter);
-        filter.destroy();
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      let env;
-      if ( elapsed < fadeIn ) env = elapsed / fadeIn;
-      else if ( elapsed > duration - fadeOut ) env = (duration - elapsed) / fadeOut;
-      else env = 1.0;
-      env = Math.max(0, Math.min(1, env));
-
-      filter.blur = intensity * env;
-
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Sway the entire screen.
- * @param {object} [options]
- * @param {number} [options.intensity=2] Max rotation in degrees
- * @param {number} [options.duration=2000]
- * @param {number} [options.frequency=2] Oscillation cycles per second
- * @param {string[]} [options.userIds] Only play for these users
- */
-animations.swayScreen = async function({ intensity = 2, duration = 2000, frequency = 2, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "swayScreen", options: { intensity, duration, frequency, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  const element = document.body;
-  const decayDuration = Math.min(duration, 2000);
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = elapsed / duration;
-
-      if ( progress >= 1 || handle.cancelled ) {
-        element.style.transform = "";
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      const decayProgress = Math.min(elapsed / decayDuration, 1);
-      const decay = Math.pow(1 - decayProgress, 2);
-      const angle = Math.sin(elapsed / 1000 * Math.PI * frequency) * intensity * decay;
-      const x = Math.sin(elapsed / 1000 * Math.PI * frequency * 0.7) * intensity * 2 * decay;
-      element.style.transform = `rotate(${angle}deg) translateX(${x}px)`;
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Play a light rays screen effect.
- * @param {object} [options]
- * @param {string} [options.color="#fff5d6"]
- * @param {number} [options.rays=12]
- * @param {number} [options.duration=2500]
- * @param {number} [options.zIndex=10000] CSS z-index for the overlay element.
- * @param {string[]} [options.userIds] Only play for these users.
- */
-animations.lightRaysScreen = async function({ color = "#fff5d6", rays = 12, duration = 2500, zIndex = 10000, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "lightRaysScreen", options: { color, rays, duration, zIndex, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
-
-  const canvas = document.createElement("canvas");
-  canvas.style.cssText = `
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: ${zIndex};
-  `;
-  document.body.appendChild(canvas);
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
-
-  const gl = canvas.getContext("webgl");
-  if ( !gl ) {
-    canvas.remove();
+export async function queryGM(name, data) {
+  const gm = game.users.activeGM;
+  if ( !gm ) {
+    ui.notifications.warn("CUSTOM_DND5E.query.noGM", { localize: true });
     return;
   }
+  return queryUser(gm, name, data);
+}
 
-  const vs = compileShader(gl, gl.VERTEX_SHADER, LIGHT_RAYS_VS);
-  const fs = compileShader(gl, gl.FRAGMENT_SHADER, LIGHT_RAYS_FS);
-  const program = gl.createProgram();
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
-  gl.useProgram(program);
+/* -------------------------------------------- */
+/*  FOLDERS                                     */
+/* -------------------------------------------- */
 
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+/**
+ * Resolve a folder by stored id, then by name, creating it if missing.
+ * @param {object} args
+ * @param {string} args.type Folder document type, e.g. `"Actor"`
+ * @param {string} args.name Localised folder name; used for find-by-name and create
+ * @param {string} [args.storedId] Previously-known folder id to try first
+ * @param {string} [args.color] Folder colour applied on create
+ * @returns {Promise<Folder|null>}
+ */
+export async function getOrCreateFolder({ type, name, storedId, color } = {}) {
+  if ( storedId ) {
+    const existing = game.folders?.get(storedId);
+    if ( existing && existing.type === type ) return existing;
+  }
+  const byName = game.folders?.find(f => f.type === type && f.name === name);
+  if ( byName ) return byName;
+  if ( !game.user.isGM ) return null;
+  return Folder.create({ name, type, color });
+}
 
-  const aPos = gl.getAttribLocation(program, "a_position");
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+/* -------------------------------------------- */
+/*  DRAG & DROP                                 */
+/* -------------------------------------------- */
 
-  const uTime = gl.getUniformLocation(program, "u_time");
-  const uFade = gl.getUniformLocation(program, "u_fade");
-  const uResolution = gl.getUniformLocation(program, "u_resolution");
-  const uColor = gl.getUniformLocation(program, "u_color");
-  const uRays = gl.getUniformLocation(program, "u_rays");
-  const uSeed = gl.getUniformLocation(program, "u_seed");
+/**
+ * Resolve an owned inventory item from a drag event's target.
+ * Recognises both the standard dnd5e/Foundry `data-uuid` and Tidy 5e's
+ * `data-info-card-entity-uuid`.
+ * @param {DragEvent|MouseEvent} event
+ * @returns {{actor: Actor, item: Item}|null}
+ */
+export function resolveOwnedItemFromDragEvent(event) {
+  const el = event.target;
+  if ( !(el instanceof HTMLElement) ) return null;
+  const itemEl = el.closest("[data-uuid], [data-info-card-entity-uuid]");
+  if ( !itemEl ) return null;
+  if ( itemEl.dataset.activityId || itemEl.dataset.effectId ) return null;
+  const uuid = itemEl.dataset.uuid ?? itemEl.dataset.infoCardEntityUuid;
+  const item = uuid ? fromUuidSync(uuid) : null;
+  if ( item?.documentName !== "Item" ) return null;
+  const actor = item.actor;
+  if ( !actor?.isOwner ) return null;
+  return { actor, item };
+}
 
-  const [r, g, b] = parseHexColor(color);
+/* -------------------------------------------- */
+/*  ITEMS                                       */
+/* -------------------------------------------- */
 
-  gl.uniform2f(uResolution, canvas.width, canvas.height);
-  gl.uniform3f(uColor, r, g, b);
-  gl.uniform1f(uRays, rays);
-  gl.uniform1f(uSeed, Math.random() * 100.0);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-  const fadeIn = Math.min(duration * 0.3, 500);
-  const fadeOut = Math.min(duration * 0.7, 1500);
-
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      if ( progress >= 1.0 || handle.cancelled ) {
-        gl.deleteProgram(program);
-        gl.deleteShader(vs);
-        gl.deleteShader(fs);
-        gl.deleteBuffer(buffer);
-        canvas.remove();
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      let fade;
-      if ( elapsed < fadeIn ) {
-        fade = elapsed / fadeIn;
-      } else if ( elapsed > duration - fadeOut ) {
-        fade = (duration - elapsed) / fadeOut;
-      } else {
-        fade = 1.0;
-      }
-      fade = Math.max(0, Math.min(1, fade));
-
-      gl.uniform1f(uTime, progress);
-      gl.uniform1f(uFade, fade);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
+/**
+ * Find an existing item on the actor that should stack with the given
+ * item data: same name, type, container parent, and compendium source.
+ * @param {Actor} actor
+ * @param {object} itemData
+ * @returns {Item|null}
+ */
+export function findStackableItem(actor, itemData) {
+  const name = itemData.name;
+  const type = itemData.type;
+  const sourceId = itemData._stats?.compendiumSource ?? null;
+  const containerId = itemData.system?.container ?? null;
+  return actor.items.find(existing => {
+    if ( existing.type !== type ) return false;
+    if ( existing.name !== name ) return false;
+    if ( (existing.system?.container ?? null) !== containerId ) return false;
+    const existingSource = existing._stats?.compendiumSource ?? null;
+    if ( sourceId && existingSource && sourceId !== existingSource ) return false;
+    return existing.system?.quantity !== undefined;
+  }) ?? null;
+}
 
 /* -------------------------------------------- */
 
 /**
- * Play a liquid splatter screen effect.
- * @param {object} [options]
- * @param {string} [options.color="#8b0000"]
- * @param {number} [options.density=10] Number of splat impacts (max 20)
- * @param {number} [options.duration=3500]
- * @param {number} [options.fluidity=1.0] Drip fluidity 0 (frozen) to 2 (watery)
- * @param {number} [options.zIndex=10000] CSS z-index for the overlay element
- * @param {string[]} [options.userIds] Only play for these users
+ * Add items to the actor by creating or stacking onto existing items.
+ * @param {Actor} actor
+ * @param {object[]} itemDataList
+ * @returns {Promise<void>}
  */
-animations.splatterScreen = async function({ color = "#8b0000", density = 10, duration = 3500, fluidity = 1.0, zIndex = 10000, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "splatterScreen", options: { color, density, duration, fluidity, zIndex, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
+export async function createOrStackItems(actor, itemDataList) {
+  if ( !actor || !itemDataList?.length ) return;
 
-  const canvas = document.createElement("canvas");
-  canvas.style.cssText = `
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: ${zIndex};
-  `;
-  document.body.appendChild(canvas);
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
+  const batchIds = new Set(itemDataList.map(d => d._id).filter(Boolean));
+  const toCreateWithId = [];
+  const toCreateFreshId = [];
 
-  const gl = canvas.getContext("webgl");
-  if ( !gl ) {
-    canvas.remove();
-    return;
-  }
+  for ( const data of itemDataList ) {
+    const isPartOfBatchTree = data.type === "container"
+      || (data.system?.container && batchIds.has(data.system.container));
 
-  const vs = compileShader(gl, gl.VERTEX_SHADER, SPLATTER_VS);
-  const fs = compileShader(gl, gl.FRAGMENT_SHADER, SPLATTER_FS);
-  const program = gl.createProgram();
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
-  gl.useProgram(program);
-
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-
-  const aPos = gl.getAttribLocation(program, "a_position");
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-  const uTime = gl.getUniformLocation(program, "u_time");
-  const uFade = gl.getUniformLocation(program, "u_fade");
-  const uResolution = gl.getUniformLocation(program, "u_resolution");
-  const uColor = gl.getUniformLocation(program, "u_color");
-  const uSeed = gl.getUniformLocation(program, "u_seed");
-  const uDensity = gl.getUniformLocation(program, "u_density");
-  const uFluidity = gl.getUniformLocation(program, "u_fluidity");
-
-  const [r, g, b] = parseHexColor(color);
-
-  gl.uniform2f(uResolution, canvas.width, canvas.height);
-  gl.uniform3f(uColor, r, g, b);
-  gl.uniform1f(uSeed, Math.random() * 100.0);
-  gl.uniform1f(uDensity, Math.max(1, Math.min(20, density)));
-  gl.uniform1f(uFluidity, Math.max(0, Math.min(2, fluidity)));
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-  const fadeOut = Math.min(duration * 0.6, 2000);
-
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      if ( progress >= 1.0 || handle.cancelled ) {
-        gl.deleteProgram(program);
-        gl.deleteShader(vs);
-        gl.deleteShader(fs);
-        gl.deleteBuffer(buffer);
-        canvas.remove();
-        _untrackAnimation(handle);
-        resolve();
-        return;
+    if ( !isPartOfBatchTree ) {
+      const existing = findStackableItem(actor, data);
+      if ( existing ) {
+        const current = existing.system?.quantity ?? 0;
+        const incoming = data.system?.quantity ?? 1;
+        await existing.update({ "system.quantity": current + incoming });
+        continue;
       }
-
-      const fade = elapsed > duration - fadeOut
-        ? Math.max(0, (duration - elapsed) / fadeOut)
-        : 1.0;
-
-      gl.uniform1f(uTime, elapsed / 1000);
-      gl.uniform1f(uFade, fade);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      requestAnimationFrame(animate);
+      const clone = foundry.utils.deepClone(data);
+      delete clone._id;
+      toCreateFreshId.push(clone);
+      continue;
     }
 
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Play a color-split screen effect.
- * @param {object} [options]
- * @param {string[]} [options.colors=["#ff0000","#00ff00","#0000ff"]] Up to three hex colors
- * @param {number} [options.intensity=25] Maximum pixel offset
- * @param {number} [options.duration=4000]
- * @param {string[]} [options.userIds] Only play for these users
- */
-animations.colorSplitCanvas = async function({ colors = ["#ff0000", "#00ff00", "#0000ff"], intensity = 25, duration = 4000, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "colorSplitCanvas", options: { colors, intensity, duration, userIds }
-    });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
-  if ( typeof canvas === "undefined" || !canvas?.stage ) return;
-
-  const rgb = colors.slice(0, 3).map(parseHexColor);
-  while ( rgb.length < 3 ) rgb.push(rgb.length === 1 ? [0, 1, 0] : [0, 0, 1]);
-
-  const filter = new PIXI.Filter(undefined, COLOR_SPLIT_FS, {
-    u_offset0: new Float32Array([0, 0]),
-    u_offset1: new Float32Array([0, 0]),
-    u_offset2: new Float32Array([0, 0]),
-    u_color0: new Float32Array(rgb[0]),
-    u_color1: new Float32Array(rgb[1]),
-    u_color2: new Float32Array(rgb[2]),
-    u_env: 0
-  });
-  filter.padding = intensity;
-
-  if ( !canvas.stage.filterArea ) {
-    canvas.stage.filterArea = canvas.app.renderer.screen;
+    toCreateWithId.push(data);
   }
 
-  const existing = canvas.stage.filters || [];
-  canvas.stage.filters = [...existing, filter];
-
-  const arcs = [
-    { fx: 1.0, fy: 1.3, px: 0, py: 0 },
-    { fx: 1.7, fy: 0.9, px: 2.094, py: 1.047 },
-    { fx: 0.8, fy: 1.6, px: 4.189, py: 3.142 }
-  ];
-
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      if ( progress >= 1.0 || handle.cancelled ) {
-        canvas.stage.filters = (canvas.stage.filters || []).filter(f => f !== filter);
-        filter.destroy();
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      const env = Math.sin(progress * Math.PI);
-      const amp = intensity * env;
-      const t = progress * Math.PI * 2 * 1.5;
-
-      for ( let i = 0; i < 3; i++ ) {
-        const arc = arcs[i];
-        filter.uniforms[`u_offset${i}`][0] = Math.cos((t * arc.fx) + arc.px) * amp;
-        filter.uniforms[`u_offset${i}`][1] = Math.sin((t * arc.fy) + arc.py) * amp;
-      }
-
-      filter.uniforms.u_env = env;
-
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Play a vignette effect to darken edges of screen.
- * @param {object} [options]
- * @param {number} [options.intensity=0.8]
- * @param {number} [options.duration=2000]
- * @param {number} [options.zIndex=10000] CSS z-index for the overlay element.
- * @param {string[]} [options.userIds] Only play for these users.
- */
-animations.vignetteScreen = async function({ intensity = 0.8, duration = 2000, zIndex = 10000, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "animation", type: "vignetteScreen", options: { intensity, duration, zIndex, userIds }
-    });
+  if ( toCreateWithId.length ) {
+    await actor.createEmbeddedDocuments("Item", toCreateWithId, { keepId: true });
   }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-
-  const overlay = document.createElement("div");
-  overlay.style.cssText = `
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: ${zIndex};
-  `;
-  document.body.appendChild(overlay);
-
-  const fadeIn = Math.min(duration * 0.5, 500);
-  const fadeOut = Math.min(duration * 0.5, 1000);
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = elapsed / duration;
-
-      if ( progress >= 1 || handle.cancelled ) {
-        overlay.remove();
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      let env;
-      if ( elapsed < fadeIn ) env = elapsed / fadeIn;
-      else if ( elapsed > duration - fadeOut ) env = (duration - elapsed) / fadeOut;
-      else env = 1.0;
-      env = Math.max(0, Math.min(1, env));
-
-      const amount = env * intensity;
-      const innerRadius = 50 - (amount * 30);
-      const outerRadius = 80 - (amount * 20);
-      const edgeOpacity = Math.min(amount * 1.5, 1);
-      overlay.style.background = `radial-gradient(circle at center, transparent ${innerRadius}%, rgba(0,0,0,${amount}) ${outerRadius}%, rgba(0,0,0,${edgeOpacity}) 100%)`;
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Play a fire screen effect with flames, floating embers, sparks, and smoke.
- * @param {object} [options]
- * @param {string} [options.color="#ff6600"] Base colour as a CSS hex string.
- * @param {number} [options.intensity=4] Overall intensity (1–10).
- * @param {number} [options.sparkFrequency=2] Base spark frequency (1–10).
- * @param {number} [options.smokeOpacity=0.4] Smoke layer opacity (0–1).
- * @param {number} [options.duration=5000] Total duration in milliseconds.
- * @param {number} [options.fadeIn] Fade-in duration in ms.
- * @param {number} [options.fadeOut] Fade-out duration in ms.
- * @param {number} [options.zIndex=10000] CSS z-index for the overlay element.
- * @param {string[]} [options.userIds] Only play for these users.
- */
-animations.fireScreen = async function({
-  color = "#ff6600", intensity = 4, sparkFrequency = 2,
-  smokeOpacity = 0.4, duration = 5000, fadeIn, fadeOut, zIndex = 10000, userIds
-} = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, { action: "animation", type: "fireScreen", options: { color, intensity, sparkFrequency, smokeOpacity, duration, fadeIn, fadeOut, zIndex, userIds } });
+  if ( toCreateFreshId.length ) {
+    await actor.createEmbeddedDocuments("Item", toCreateFreshId);
   }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
-
-  const canvas = document.createElement("canvas");
-  canvas.style.cssText = `
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: ${zIndex};
-  `;
-  document.body.appendChild(canvas);
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
-
-  const gl = canvas.getContext("webgl");
-  if ( !gl ) {
-    canvas.remove();
-    return;
-  }
-
-  const vs = compileShader(gl, gl.VERTEX_SHADER, FIRE_VS);
-  const fs = compileShader(gl, gl.FRAGMENT_SHADER, FIRE_FS);
-  const program = gl.createProgram();
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
-  gl.useProgram(program);
-
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-
-  const aPos = gl.getAttribLocation(program, "a_position");
-  gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-  const uTime = gl.getUniformLocation(program, "u_time");
-  const uFade = gl.getUniformLocation(program, "u_fade");
-  const uResolution = gl.getUniformLocation(program, "u_resolution");
-  const uColor = gl.getUniformLocation(program, "u_color");
-  const uSeed = gl.getUniformLocation(program, "u_seed");
-  const uIntensity = gl.getUniformLocation(program, "u_intensity");
-  const uSparkFrequency = gl.getUniformLocation(program, "u_sparkFrequency");
-  const uSmokeOpacity = gl.getUniformLocation(program, "u_smokeOpacity");
-
-  const [r, g, b] = parseHexColor(color);
-
-  gl.uniform2f(uResolution, canvas.width, canvas.height);
-  gl.uniform3f(uColor, r, g, b);
-  gl.uniform1f(uSeed, Math.random() * 100.0);
-  gl.uniform1f(uIntensity, (Math.max(1, Math.min(10, intensity)) - 1) / 3);
-  gl.uniform1f(uSparkFrequency, Math.max(1, Math.min(10, sparkFrequency)) / 10);
-  gl.uniform1f(uSmokeOpacity, Math.max(0, Math.min(1, smokeOpacity)));
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-  fadeIn = fadeIn ?? Math.min(duration * 0.15, 500);
-  fadeOut = fadeOut ?? Math.min(duration * 0.4, 2000);
-
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      if ( progress >= 1.0 || handle.cancelled ) {
-        gl.deleteProgram(program);
-        gl.deleteShader(vs);
-        gl.deleteShader(fs);
-        gl.deleteBuffer(buffer);
-        canvas.remove();
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      let fade;
-      if ( elapsed < fadeIn ) {
-        fade = elapsed / fadeIn;
-      } else if ( elapsed > duration - fadeOut ) {
-        fade = (duration - elapsed) / fadeOut;
-      } else {
-        fade = 1.0;
-      }
-      fade = Math.max(0, Math.min(1, fade));
-
-      gl.uniform1f(uTime, elapsed / 1000);
-      gl.uniform1f(uFade, fade);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
-
-/* -------------------------------------------- */
-
-/**
- * Play a wave distortion screen effect.
- * @param {object} [options]
- * @param {number} [options.intensity=30] Maximum displacement in pixels.
- * @param {number} [options.speed=1] Animation speed multiplier.
- * @param {number} [options.duration=4000]
- * @param {string[]} [options.userIds] Only play for these users.
- */
-animations.waveCanvas = async function({ intensity = 30, speed = 1, duration = 4000, userIds } = {}) {
-  if ( userIds && requiresSocket(userIds) ) {
-    game.socket.emit(`module.${MODULE.ID}`, { action: "animation", type: "waveCanvas", options: { intensity, speed, duration, userIds } });
-  }
-  if ( userIds && !userIds.includes(game.user.id) ) return;
-  if ( game.settings.get("core", "photosensitiveMode") ) return;
-  if ( typeof canvas === "undefined" || !canvas?.stage ) return;
-
-  const filter = new PIXI.Filter(undefined, WAVE_FS, {
-    u_time: 0,
-    u_intensity: 0
-  });
-  filter.padding = intensity;
-
-  if ( !canvas.stage.filterArea ) {
-    canvas.stage.filterArea = canvas.app.renderer.screen;
-  }
-
-  const existing = canvas.stage.filters || [];
-  canvas.stage.filters = [...existing, filter];
-
-  const startTime = performance.now();
-  const handle = _trackAnimation();
-
-  return new Promise(resolve => {
-    /**
-     * Animation frame handler.
-     * @param {number} currentTime
-     */
-    function animate(currentTime) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1.0);
-
-      if ( progress >= 1.0 || handle.cancelled ) {
-        canvas.stage.filters = (canvas.stage.filters || []).filter(f => f !== filter);
-        filter.destroy();
-        _untrackAnimation(handle);
-        resolve();
-        return;
-      }
-
-      const sine = Math.sin(progress * Math.PI);
-      const env = sine * sine;
-
-      filter.uniforms.u_time = (elapsed / 1000) * speed;
-      filter.uniforms.u_intensity = intensity * env;
-
-      requestAnimationFrame(animate);
-    }
-
-    requestAnimationFrame(animate);
-  });
-};
+}

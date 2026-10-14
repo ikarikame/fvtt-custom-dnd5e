@@ -5,23 +5,49 @@
             <div class="form-group">
                 <label>{{ localize "CUSTOM_DND5E.activities.macro.enable.label" }}</label>
                 <div class="form-fields">
-                    <dnd5e-checkbox name="macro"{{#if macro}} checked{{/if}}></dnd5e-checkbox>
+                    <dnd5e-checkbox name="macro" {{checked macro}}></dnd5e-checkbox>
                 </div>
                 <p class="hint">{{ localize "CUSTOM_DND5E.activities.macro.enable.hint" }}</p>
             </div>
             <div class="form-group">
                 <label>{{ localize "CUSTOM_DND5E.activities.move.enable.label" }}</label>
                 <div class="form-fields">
-                    <dnd5e-checkbox name="move"{{#if move}} checked{{/if}}></dnd5e-checkbox>
+                    <dnd5e-checkbox name="move" {{checked move}}></dnd5e-checkbox>
                 </div>
                 <p class="hint">{{ localize "CUSTOM_DND5E.activities.move.enable.hint" }}</p>
             </div>
             <div class="form-group">
+                <label>{{ localize "CUSTOM_DND5E.activities.multiattack.enable.label" }}</label>
+                <div class="form-fields">
+                    <dnd5e-checkbox name="multiattack" {{checked multiattack}}></dnd5e-checkbox>
+                </div>
+                <p class="hint">{{ localize "CUSTOM_DND5E.activities.multiattack.enable.hint" }}</p>
+            </div>
+            <div class="form-group">
                 <label>{{ localize "CUSTOM_DND5E.activities.swap.enable.label" }}</label>
                 <div class="form-fields">
-                    <dnd5e-checkbox name="swap"{{#if swap}} checked{{/if}}></dnd5e-checkbox>
+                    <dnd5e-checkbox name="swap" {{checked swap}}></dnd5e-checkbox>
                 </div>
                 <p class="hint">{{ localize "CUSTOM_DND5E.activities.swap.enable.hint" }}</p>
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>{{ localize "CUSTOM_DND5E.activities.multiattack.title" }}</legend>
+            <div class="form-group">
+                <label>{{ localize "CUSTOM_DND5E.activities.multiattack.dice.label" }}</label>
+                <div class="form-fields">
+                    <select name="multiattackDice">
+                        {{selectOptions selects.multiattackDice.choices selected=multiattackDice localize=true}}
+                    </select>
+                </div>
+                <p class="hint">{{ localize "CUSTOM_DND5E.activities.multiattack.dice.hint" }}</p>
+            </div>
+            <div class="form-group">
+                <label>{{ localize "CUSTOM_DND5E.activities.multiattack.panToTargets.label" }}</label>
+                <div class="form-fields">
+                    <dnd5e-checkbox name="multiattackPanToTargets" {{checked multiattackPanToTargets}}></dnd5e-checkbox>
+                </div>
+                <p class="hint">{{ localize "CUSTOM_DND5E.activities.multiattack.panToTargets.hint" }}</p>
             </div>
         </fieldset>
         <fieldset>
@@ -29,9 +55,25 @@
             <div class="form-group">
                 <label>{{ localize "CUSTOM_DND5E.activities.targeting.enable.label" }}</label>
                 <div class="form-fields">
-                    <dnd5e-checkbox name="targeting"{{#if targeting}} checked{{/if}}></dnd5e-checkbox>
+                    <dnd5e-checkbox name="targeting" {{checked targeting}}></dnd5e-checkbox>
                 </div>
                 <p class="hint">{{ localize "CUSTOM_DND5E.activities.targeting.enable.hint" }}</p>
+            </div>
+            <div class="form-group">
+                <label>{{ localize "CUSTOM_DND5E.activities.targeting.fallbackTarget.label" }}</label>
+                <div class="form-fields">
+                    <dnd5e-checkbox name="fallbackTarget" {{checked fallbackTarget}}></dnd5e-checkbox>
+                </div>
+                <p class="hint">{{ localize "CUSTOM_DND5E.activities.targeting.fallbackTarget.hint" }}</p>
+            </div>
+            <div class="form-group">
+                <label>{{ localize "CUSTOM_DND5E.activities.targeting.clearTargets.label" }}</label>
+                <div class="form-fields">
+                    <select id="custom-dnd5e-activities-clear-targets" name="clearTargets">
+                        {{selectOptions selects.clearTargets.choices selected=clearTargets localize=true}}
+                    </select>
+                </div>
+                <p class="hint">{{ localize "CUSTOM_DND5E.activities.targeting.clearTargets.hint" }}</p>
             </div>
         </fieldset>
     </div>

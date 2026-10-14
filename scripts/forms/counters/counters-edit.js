@@ -3,9 +3,15 @@ import { getFlag, setFlag, unsetFlag, getSetting, setSetting, Logger } from "../
 import { CustomDnd5eForm } from "../custom-dnd5e-form.js";
 import { WorkflowsEditForm, COUNTER_TRIGGERS, COUNTER_ACTIONS } from "../workflows/workflows-edit.js";
 import { rebuild, ensureEventHooks } from "../../workflows/workflows.js";
+import {
+  copyWorkflowToClipboard,
+  parseAndValidateWorkflows,
+  promptForWorkflowJson
+} from "../workflows/workflow-clipboard.js";
 
 const id = CONSTANTS.COUNTERS.ID;
 const form = `${id}-edit`;
+const TYPES = CONSTANTS.COUNTERS.TYPES;
 
 /**
  * Get the workflows setting key for the given entity type.
@@ -35,12 +41,16 @@ export class CountersEditForm extends CustomDnd5eForm {
   }
 
   /* -------------------------------------------- */
+  /*  STATIC PROPERTIES                           */
+  /* -------------------------------------------- */
 
   static DEFAULT_OPTIONS = {
     actions: {
       newWorkflow: CountersEditForm.newWorkflow,
       editWorkflow: CountersEditForm.editWorkflow,
-      deleteWorkflow: CountersEditForm.deleteWorkflow
+      deleteWorkflow: CountersEditForm.deleteWorkflow,
+      copyWorkflow: CountersEditForm.copyWorkflow,
+      pasteWorkflow: CountersEditForm.pasteWorkflow
     },
     form: {
       handler: CountersEditForm.submit,
@@ -61,9 +71,18 @@ export class CountersEditForm extends CustomDnd5eForm {
   };
 
   /* -------------------------------------------- */
+  /*  RENDER CONTEXT                              */
+  /* -------------------------------------------- */
 
   #getSelects() {
     return {
+      displayOnActorSheet: {
+        choices: {
+          never: "CUSTOM_DND5E.never",
+          always: "CUSTOM_DND5E.always",
+          equipped: "CUSTOM_DND5E.whenEquipped"
+        }
+      },
       type: {
         choices: {
           checkbox: "CUSTOM_DND5E.checkbox",
@@ -87,12 +106,14 @@ export class CountersEditForm extends CustomDnd5eForm {
   /* -------------------------------------------- */
 
   /**
-   * Check whether a workflow references the given counter key in any trigger or action.
+   * Check whether a workflow belongs to the given counter, either because it was created against the
+   * counter or because a trigger or action references it.
    * @param {object} workflow The workflow
-   * @param {string} counterKey The counter key
-   * @returns {boolean} Whether the workflow references the counter key
+   * @param {string} counterKey
+   * @returns {boolean} Whether the workflow belongs to the counter key
    */
   #workflowReferencesCounter(workflow, counterKey) {
+    if ( workflow.counterKey === counterKey ) return true;
     const triggers = Object.values(workflow.triggers || {});
     const actions = Object.values(workflow.actions || {});
     return triggers.some(t => COUNTER_TRIGGERS.includes(t.event) && t.counterKey === counterKey)
@@ -129,10 +150,17 @@ export class CountersEditForm extends CustomDnd5eForm {
       viewRole: counterData?.viewRole || 1,
       editRole: counterData?.editRole || 1,
       max: counterData?.max,
+      showMax: TYPES.WITH_MAX.includes(type),
+      min: counterData?.min,
+      showMin: TYPES.WITH_MIN.includes(type),
+      start: counterData?.start,
+      showStart: TYPES.WITH_START.includes(type),
       type,
       workflows,
       selects: this.#getSelects(),
+      displayOnActorSheet: counterData?.displayOnActorSheet || "never",
       isActorCounter: this.actorType === "actor",
+      isItemCounter: this.actorType === "item",
       isEntity: !!this.entity,
       actorTypes: {
         character: counterData?.actorTypes ? counterData.actorTypes.includes("character") : true,
@@ -150,15 +178,19 @@ export class CountersEditForm extends CustomDnd5eForm {
 
     const typeSelect = this.element.querySelector("#custom-dnd5e-type");
     const maxGroup = this.element.querySelector("#custom-dnd5e-max")?.closest(".form-group");
+    const minGroup = this.element.querySelector("#custom-dnd5e-min")?.closest(".form-group");
+    const startGroup = this.element.querySelector("#custom-dnd5e-start")?.closest(".form-group");
     if ( typeSelect && maxGroup ) {
       typeSelect.addEventListener("change", () => {
-        maxGroup.classList.toggle("hidden", typeSelect.value === "checkbox");
+        maxGroup.classList.toggle("hidden", !TYPES.WITH_MAX.includes(typeSelect.value));
+        minGroup?.classList.toggle("hidden", !TYPES.WITH_MIN.includes(typeSelect.value));
+        startGroup?.classList.toggle("hidden", !TYPES.WITH_START.includes(typeSelect.value));
       });
     }
   }
 
   /* -------------------------------------------- */
-  /*  Workflow Actions                             */
+  /*  WORKFLOW ACTIONS                            */
   /* -------------------------------------------- */
 
   static async newWorkflow() {
@@ -174,7 +206,8 @@ export class CountersEditForm extends CustomDnd5eForm {
         key,
         name: "",
         entity: this.entity,
-        entityType: this.actorType
+        entityType: this.actorType,
+        counterKey: this.key
       }
     };
     await WorkflowsEditForm.open(args);
@@ -247,7 +280,118 @@ export class CountersEditForm extends CustomDnd5eForm {
   }
 
   /* -------------------------------------------- */
-  /*  Submit                                      */
+
+  /**
+   * Copy a workflow's JSON to the clipboard.
+   * @param {Event} event Click event
+   * @param {HTMLElement} target Clicked element
+   */
+  static async copyWorkflow(event, target) {
+    const item = target.closest(".item");
+    if ( !item ) return;
+    const workflowKey = item.dataset.key;
+    if ( !workflowKey ) return;
+
+    const workflows = this.entity
+      ? (getFlag(this.entity, "triggers") || {})
+      : (getSetting(workflowsSettingKey(this.actorType)) || {});
+    const workflow = workflows[workflowKey];
+    if ( !workflow ) return;
+
+    await copyWorkflowToClipboard(workflow, this.actorType, workflowKey);
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Open a dialog to paste workflow JSON, then attach it to the current counter.
+   */
+  static async pasteWorkflow() {
+    const form = this;
+    await promptForWorkflowJson(async text => {
+      const entries = parseAndValidateWorkflows(text, form.actorType);
+      if ( !entries?.length ) return;
+      const workflow = foundry.utils.deepClone(entries[0]);
+      delete workflow.entityType;
+      workflow.counterKey = form.key;
+
+      for ( const trigger of Object.values(workflow.triggers || {}) ) {
+        if ( COUNTER_TRIGGERS.includes(trigger.event) ) trigger.counterKey = form.key;
+      }
+      for ( const action of Object.values(workflow.actions || {}) ) {
+        if ( COUNTER_ACTIONS.includes(action.type) ) action.counterKey = form.key;
+      }
+
+      const newKey = foundry.utils.randomID();
+      if ( form.entity ) {
+        const triggers = getFlag(form.entity, "triggers") || {};
+        triggers[newKey] = workflow;
+        await unsetFlag(form.entity, "triggers");
+        await setFlag(form.entity, "triggers", triggers);
+        ensureEventHooks(triggers, form.actorType);
+      } else {
+        const settingKey = workflowsSettingKey(form.actorType);
+        const setting = getSetting(settingKey) || {};
+        setting[newKey] = workflow;
+        await setSetting(settingKey, setting);
+        rebuild();
+      }
+
+      form.render(true);
+
+      Logger.info(
+        game.i18n.format("CUSTOM_DND5E.workflowImport.success", { name: workflow.name }),
+        true
+      );
+    });
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Migrate every workflow reference from an old counter key to a new one when the counter is renamed.
+   * @param {string} oldKey
+   * @param {string} newKey
+   */
+  async #migrateWorkflowCounterKey(oldKey, newKey) {
+    const workflows = this.entity
+      ? (getFlag(this.entity, "triggers") || {})
+      : (getSetting(workflowsSettingKey(this.actorType)) || {});
+
+    let changed = false;
+    for ( const workflow of Object.values(workflows) ) {
+      if ( workflow.counterKey === oldKey ) {
+        workflow.counterKey = newKey;
+        changed = true;
+      }
+      for ( const trigger of Object.values(workflow.triggers || {}) ) {
+        if ( COUNTER_TRIGGERS.includes(trigger.event) && trigger.counterKey === oldKey ) {
+          trigger.counterKey = newKey;
+          changed = true;
+        }
+      }
+      for ( const action of Object.values(workflow.actions || {}) ) {
+        if ( COUNTER_ACTIONS.includes(action.type) && action.counterKey === oldKey ) {
+          action.counterKey = newKey;
+          changed = true;
+        }
+      }
+    }
+
+    if ( !changed ) return;
+
+    if ( this.entity ) {
+      await unsetFlag(this.entity, "triggers");
+      await setFlag(this.entity, "triggers", workflows);
+      ensureEventHooks(workflows, this.actorType);
+    } else {
+      await setSetting(workflowsSettingKey(this.actorType), workflows);
+      rebuild();
+    }
+  }
+
+  /* -------------------------------------------- */
+  /*  FORM SUBMISSION                             */
   /* -------------------------------------------- */
 
   static async submit(event, form, formData) {
@@ -271,9 +415,15 @@ export class CountersEditForm extends CustomDnd5eForm {
       foundry.utils.setProperty(this.setting, key, value);
     });
 
-    // Strip max for checkbox counters
-    if ( this.setting[this.key]?.type === "checkbox" ) {
-      delete this.setting[this.key].max;
+    const counter = this.setting[this.key];
+    if ( counter && !TYPES.WITH_MAX.includes(counter.type) ) {
+      delete counter.max;
+    }
+    if ( counter && (!TYPES.WITH_MIN.includes(counter.type) || !counter.min) ) {
+      delete counter.min;
+    }
+    if ( counter && (!TYPES.WITH_START.includes(counter.type) || !counter.start) ) {
+      delete counter.start;
     }
 
     // Build actorTypes array from checkboxes
@@ -313,6 +463,8 @@ export class CountersEditForm extends CustomDnd5eForm {
           }
         }
       }
+
+      await this.#migrateWorkflowCounterKey(oldKey, newKey);
 
       this.key = newKey;
     }

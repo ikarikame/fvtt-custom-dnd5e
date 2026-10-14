@@ -9,10 +9,6 @@
     flex: 0;
 }
 
-.custom-dnd5e-app {
-    height: 100%;
-}
-
 .custom-dnd5e-app .hidden {
     display: none;
 }
@@ -115,13 +111,13 @@
     background: none;
     border: none;
     border-radius: 0;
-    display: inline-block;
+    color: var(--item-control-interactive-color);
     line-height: normal;
     margin: 0;
     padding: 0;
     outline: none;
+    text-transform: none;
     width: unset;
-    color:  var(--item-control-interactive-color);
 }
 
 .custom-dnd5e-app button.unbutton:focus,
@@ -520,17 +516,35 @@
 }
 
 /*************************************
-    CALENDAR EDIT FORM
+    TABLE
 **************************************/
 
-#custom-dnd5e-calendar-edit-form .scrollable {
+.custom-dnd5e-app .scrollable:has(.custom-dnd5e-table),
+#custom-dnd5e-calendar-edit-form .scrollable.fieldset-list {
     padding-top: 5px;
 }
 
-#custom-dnd5e-calendar-edit-form .items-header.header {
+.custom-dnd5e-app .custom-dnd5e-table .items-header.header {
     gap: 0.5rem;
     padding: 0 0.25rem;
 }
+
+.custom-dnd5e-app .custom-dnd5e-table .item-row {
+    gap: 0.5rem;
+}
+
+.custom-dnd5e-app .custom-dnd5e-table .item-row > div:not(.item-controls) {
+    display: flex;
+    min-width: 0;
+}
+
+.custom-dnd5e-app .custom-dnd5e-table .item-row input[type="number"] {
+    text-align: center;
+}
+
+/*************************************
+    CALENDAR EDIT FORM
+**************************************/
 
 #custom-dnd5e-calendar-edit-form .item-name {
     flex: 2;
@@ -543,12 +557,10 @@
 #custom-dnd5e-calendar-edit-form .item-ordinal,
 #custom-dnd5e-calendar-edit-form .item-days {
     flex: 0 0 3rem;
-    text-align: center;
 }
 
 #custom-dnd5e-calendar-edit-form .item-leap-days {
     flex: 0 0 4.5rem;
-    text-align: center;
 }
 
 #custom-dnd5e-calendar-edit-form .item-day-start,
@@ -556,20 +568,27 @@
 #custom-dnd5e-calendar-edit-form .item-month,
 #custom-dnd5e-calendar-edit-form .item-day {
     flex: 1;
-    text-align: center;
 }
 
-#custom-dnd5e-calendar-edit-form .item-row {
-    gap: 0.5rem;
+/*************************************
+    SPELLCASTING FORM
+**************************************/
+
+#custom-dnd5e-spellcasting-form .item-name .form-group label {
+    flex: 0 0 5rem;
 }
 
-#custom-dnd5e-calendar-edit-form .item-row > div:not(.item-controls) {
-    display: flex;
-    min-width: 0;
+#custom-dnd5e-spellcasting-form .custom-dnd5e-table .items-header.header,
+#custom-dnd5e-spellcasting-form .custom-dnd5e-table .item-row {
+    gap: 0.25rem;
 }
 
-#custom-dnd5e-calendar-edit-form .item-row input[type="number"] {
-    text-align: center;
+#custom-dnd5e-spellcasting-form .custom-dnd5e-table .item-name {
+    flex: 0 0 4.5rem;
+}
+
+#custom-dnd5e-spellcasting-form .custom-dnd5e-table .item-slots {
+    flex: 1 1 2rem;
 }
 
 .custom-dnd5e-drop-area {
@@ -655,6 +674,7 @@
 
 .tidy5e-sheet.application:where(.quadrone) :is(button,.button):where(:not(.header-control):not(.controls-dropdown .control)).custom-dnd5e-disposition-button:active:not(:disabled),
 .tidy5e-sheet.application:where(.quadrone) :is(button,.button):where(:not(.header-control):not(.controls-dropdown .control)).custom-dnd5e-disposition-button:active:not(:disabled):hover,
+.tidy5e-sheet.application:where(.quadrone) :is(button,.button):where(:not(.header-control):not(.controls-dropdown .control)).custom-dnd5e-disposition-button.active:hover:not(:disabled),
 .tidy5e-sheet.application:where(.quadrone) :is(button,.button).custom-dnd5e-disposition-button:focus-within:not(.button-toggle):not(:disabled) {
     background: transparent;
     border: none;
@@ -675,4 +695,46 @@
 .theme-light .custom-dnd5e-disposition-button.active i,
 .tidy5e-sheet.application.theme-light:where(.quadrone) :is(button,.button):where(:not(.header-control):not(.controls-dropdown .control)).custom-dnd5e-disposition-button.active i {
     color: var(--color-text-primary);
+}
+
+.custom-dnd5e-app .custom-dnd5e-edit-label {
+    flex: 1;
+    min-width: 80px;
+    max-width: 100px;
+}
+
+.custom-dnd5e-app .custom-dnd5e-edit-label-wide {
+    flex: 1;
+    min-width: 80px;
+    max-width: 120px;
+}
+
+.custom-dnd5e-app .custom-dnd5e-edit-label-fixed-lg {
+    flex: 1;
+    min-width: 140px;
+    max-width: 140px;
+}
+
+.custom-dnd5e-app .custom-dnd5e-edit-label-flex2 {
+    flex: 2;
+    min-width: 80px;
+}
+
+.custom-dnd5e-app .custom-dnd5e-edit-label-full {
+    flex: 0 0 100%;
+}
+
+.custom-dnd5e-app .custom-dnd5e-enable-label {
+    flex: 1;
+    min-width: 80px;
+    white-space: nowrap;
+}
+
+.custom-dnd5e-app .custom-dnd5e-pb-dice {
+    flex: 0 0 auto;
+    align-self: center;
+    min-width: 48px;
+    color: var(--color-text-dark-secondary, #7a7971);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }

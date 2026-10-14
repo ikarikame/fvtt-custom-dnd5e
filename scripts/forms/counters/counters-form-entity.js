@@ -49,7 +49,7 @@ export class CountersFormEntity extends CountersForm {
    */
   static PARTS = {
     form: {
-      template: `modules/${MODULE.ID}/templates/counters/${form}.hbs`
+      template: CONSTANTS.CONFIG.TEMPLATE.SECTIONS
     }
   };
 
@@ -58,7 +58,7 @@ export class CountersFormEntity extends CountersForm {
   /**
    * Prepare the context for rendering the form.
    *
-   * @returns {Promise<object>} The context data.
+   * @returns {Promise<object>} Context data
    */
   async _prepareContext() {
     this.counters = getFlag(this.entity, "counters") || {};
@@ -66,10 +66,27 @@ export class CountersFormEntity extends CountersForm {
     // world counter value entries (which only have value/success/failure) are preserved
     // in this.counters but not shown in the form.
     const displayCounters = Object.fromEntries(
-      Object.entries(this.counters).filter(([_, c]) => c.type !== undefined)
+      Object.entries(this.counters).filter(([_, c]) => c && c.type !== undefined)
     );
+    const actorType = this.entity.documentName === "Item" ? "item" : "actor";
     return {
-      counters: displayCounters
+      sections: [{
+        listTitle: "CUSTOM_DND5E.form.counters.listTitle",
+        showNew: true,
+        list: {
+          items: displayCounters,
+          toggleField: "visible",
+          editAction: "edit",
+          showToggle: true,
+          showSystem: false,
+          rowActions: [{
+            action: "copy-property",
+            icon: "fa-solid fa-at",
+            tooltip: "CUSTOM_DND5E.form.counters.copyProperty.tooltip"
+          }],
+          extraInputs: [{ name: "actorType", value: actorType }, { name: "key", useKey: true }]
+        }
+      }]
     };
   }
 
@@ -151,6 +168,11 @@ export class CountersFormEntity extends CountersForm {
       if ( ignore.includes(key.split(".").pop()) ) { return; }
       foundry.utils.setProperty(this.counters, key, value);
     });
+
+    // Strip null/undefined entries
+    for ( const key of Object.keys(this.counters) ) {
+      if ( this.counters[key] == null ) delete this.counters[key];
+    }
 
     await unsetFlag(this.entity, "counters");
     await setFlag(this.entity, "counters", this.counters);

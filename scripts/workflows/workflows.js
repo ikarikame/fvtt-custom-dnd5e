@@ -1,14 +1,31 @@
 import { CONSTANTS, MODULE, SETTING_BY_ENTITY_TYPE, SHEET_TYPE } from "../constants.js";
-import { c5eLoadTemplates, compareValues, executeMacro, getFlag, setFlag, unsetFlag, getSetting, setSetting, Logger, registerMenu, registerSetting, resolveFormula } from "../utils.js";
+import { c5eLoadTemplates, compareValues, executeMacro, getFlag, unsetFlag, getModuleMarker, getSetting, setSetting, isPrimaryHandler, Logger, parseNumber, queryUser, registerMenu, registerSetting, resolveFormula } from "../utils.js";
 import { WorkflowsForm } from "../forms/workflows/workflows-form.js";
 import { WorkflowsFormEntity } from "../forms/workflows/workflows-form-entity.js";
-import { counters } from "../counters/counters.js";
+import {
+  checkCheckbox,
+  decreaseFraction,
+  decreaseNumber,
+  getCounters,
+  getCounterValue,
+  getSuccessFailureValue,
+  hasDataChanged,
+  increaseFraction,
+  increaseNumber,
+  mergeCounters,
+  resetCounter,
+  resolveTriggerValue,
+  setFraction,
+  setNumber,
+  toggleCheckbox,
+  uncheckCheckbox
+} from "../counters/counters.js";
 
 const constants = CONSTANTS.WORKFLOWS;
 const LOG_PREFIX = "Workflows |";
 
 /* -------------------------------------------- */
-/*  Event-Indexed Registry State                */
+/*  EVENT-INDEXED REGISTRY STATE                */
 /* -------------------------------------------- */
 
 const eventIndex = new Map(); // EventType -> workflow[] (world actor workflows, pre-indexed)
@@ -16,7 +33,7 @@ const itemEventIndex = new Map(); // EventType -> workflow[] (world item workflo
 const hookIds = new Map(); // HookName -> hookId (currently registered hooks)
 
 /* -------------------------------------------- */
-/*  Registration                                */
+/*  REGISTRATION                                */
 /* -------------------------------------------- */
 
 /** Register settings, hooks, and templates. */
@@ -26,6 +43,7 @@ export function register() {
   Hooks.on("renderActorSheetV2", addActorWorkflowsButton);
   Hooks.on("renderGroupActorSheet", addGroupWorkflowsButton);
   Hooks.on("renderItemSheet5e", addItemWorkflowsButton);
+  Hooks.on("dnd5e.preRollV2", addWorkflowNameToRoll);
 
   const templates = Object.values(constants.TEMPLATE);
   c5eLoadTemplates(templates);
@@ -80,7 +98,7 @@ function registerSettings() {
 }
 
 /* -------------------------------------------- */
-/*  Sheet Buttons                               */
+/*  SHEET BUTTONS                               */
 /* -------------------------------------------- */
 
 /**
@@ -107,6 +125,7 @@ function addActorWorkflowsButton(app, html, data) {
 
   const buttonHtml = `<button type="button" class="custom-dnd5e-workflows-button">
     <i class="fas fa-bolt-lightning"></i> ${game.i18n.localize("CUSTOM_DND5E.form.workflows.title")}
+    ${getModuleMarker()}
   </button>`;
   tab.insertAdjacentHTML("afterbegin", buttonHtml);
 
@@ -138,6 +157,7 @@ function addGroupWorkflowsButton(app, html, data) {
 
   const buttonHtml = `<button type="button" class="custom-dnd5e-workflows-button">
     <i class="fas fa-bolt-lightning"></i> ${game.i18n.localize("CUSTOM_DND5E.form.workflows.title")}
+    ${getModuleMarker()}
   </button>`;
   tab.insertAdjacentHTML("afterbegin", buttonHtml);
 
@@ -169,6 +189,7 @@ function addItemWorkflowsButton(app, html, data) {
 
   const buttonHtml = `<button type="button" class="custom-dnd5e-workflows-button">
     <i class="fas fa-bolt-lightning"></i> ${game.i18n.localize("CUSTOM_DND5E.form.workflows.title")}
+    ${getModuleMarker()}
   </button>`;
   tab.insertAdjacentHTML("afterbegin", buttonHtml);
 
@@ -179,7 +200,7 @@ function addItemWorkflowsButton(app, html, data) {
 }
 
 /* -------------------------------------------- */
-/*  Action Execution                            */
+/*  ACTION EXECUTION                            */
 /* -------------------------------------------- */
 
 /**
@@ -213,6 +234,20 @@ function resolveUpdateValue(entity, value) {
 /* -------------------------------------------- */
 
 /**
+ * Resolve a counter action value.
+ * @param {Actor|Item} entity
+ * @param {number|string} value Number, attribute path or calculation
+ * @returns {number|undefined} Resolved value, or undefined when empty or not a number
+ */
+function resolveActionValue(entity, value) {
+  if ( value === undefined || value === null || value === "" ) return undefined;
+  if ( typeof value === "string" && value.includes("@") ) return resolveFormula(entity, value) ?? undefined;
+  return parseNumber(value) ?? undefined;
+}
+
+/* -------------------------------------------- */
+
+/**
  * Execute all actions in a workflow.
  * @param {object} actions Actions
  * @param {object} options Options
@@ -223,9 +258,13 @@ function resolveUpdateValue(entity, value) {
  * @param {object|null} [options.data] Additional data
  * @param {string|null} [options.counterKey] Counter key
  * @param {number|null} [options.counterValue] Counter value
+ * @param {string|null} [options.userId] ID of the user who triggered the event
+ * @param {string|null} [options.workflowName]
  */
-function executeWorkflowActions(actions,
-  {entity, event, dieTotal = null, rolls = null, data = null, counterKey = null, counterValue = null}) {
+function executeWorkflowActions(actions, {
+  entity, event, dieTotal = null, rolls = null, data = null, counterKey = null, counterValue = null, userId = null,
+  workflowName = null
+}) {
   const actor = entity.documentName === "Item" ? entity.parent : entity;
   const actorUpdates = {};
   const tokenUpdates = {};
@@ -248,14 +287,15 @@ function executeWorkflowActions(actions,
         foundry.utils.setProperty(itemUpdates, action.updatePath, value);
       }
     } else {
-      handleAction(action, { entity, event, dieTotal, rolls, data, counterKey, counterValue });
+      handleAction(action, { entity, event, dieTotal, rolls, data, counterKey, counterValue, userId, workflowName });
     }
   }
 
   if ( Object.keys(actorUpdates).length ) actor?.update(actorUpdates);
   if ( Object.keys(tokenUpdates).length ) {
     const token = actor?.isToken ? actor.token : actor?.getActiveTokens()[0];
-    if ( token ) token.document.update(tokenUpdates);
+    const tokenDoc = token?.document ?? token;
+    if ( tokenDoc ) tokenDoc.update(tokenUpdates);
   }
   if ( Object.keys(itemUpdates).length && entity.documentName === "Item" ) {
     entity.update(itemUpdates);
@@ -275,9 +315,13 @@ function executeWorkflowActions(actions,
  * @param {object|null} [options.data] Additional hook data
  * @param {string|null} [options.counterKey] Counter key
  * @param {number|null} [options.counterValue] Counter value
+ * @param {string|null} [options.userId] ID of the user who triggered the event
+ * @param {string|null} [options.workflowName]
  */
-function handleAction(action,
-  { entity, event, dieTotal = null, rolls = null, data = null, counterKey = null, counterValue = null }) {
+function handleAction(action, {
+  entity, event, dieTotal = null, rolls = null, data = null,
+  counterKey = null, counterValue = null, userId = null, workflowName = null
+}) {
   Logger.debug(`${LOG_PREFIX} Executing action`, { entity: entity.name, event, actionType: action.type });
 
   // Resolve the parent actor for item-level workflows
@@ -285,10 +329,10 @@ function handleAction(action,
 
   switch (action.type) {
     case "macro": {
-      const macroArgs = { actor, item: entity.documentName === "Item" ? entity : null, event, dieTotal, rolls, data };
+      const macroArgs = { actor, item: entity.documentName === "Item" ? entity : null, event, dieTotal, rolls, data, userId };
       if ( counterKey ) {
         const rawKey = counterKey.startsWith("counters.") ? counterKey.slice(9) : counterKey;
-        const counter = counters.getCounters(entity, rawKey);
+        const counter = getCounters(entity, rawKey);
         macroArgs.counterKey = rawKey;
         macroArgs.counterName = counter?.label ? game.i18n.localize(counter.label) : rawKey;
         macroArgs.counterValue = counterValue;
@@ -315,7 +359,7 @@ function handleAction(action,
       distributeAward();
       break;
     case "requestRoll":
-      requestRoll(actor, action);
+      requestRoll(actor, action, workflowName);
       break;
     case "actorUpdate":
       actorUpdate(actor, action);
@@ -329,6 +373,7 @@ function handleAction(action,
     case "check":
     case "uncheck":
     case "toggle":
+    case "reset":
       executeCounterAction(entity, action);
       break;
     case "destroy":
@@ -420,28 +465,32 @@ function executeCounterAction(entity, action) {
 
   // Prefix with "counters." so counter functions store values at counters.{key}.value
   const counterKey = `counters.${key}`;
+  const actionValue = resolveActionValue(entity, action.actionValue);
 
   switch (action.type) {
     case "increase":
-      if ( counter.type === "fraction" ) counters.increaseFraction(entity, counterKey, action.actionValue);
-      else counters.increaseNumber(entity, counterKey, action.actionValue);
+      if ( counter.type === "fraction" ) increaseFraction(entity, counterKey, actionValue);
+      else increaseNumber(entity, counterKey, actionValue);
       break;
     case "decrease":
-      if ( counter.type === "fraction" ) counters.decreaseFraction(entity, counterKey, action.actionValue);
-      else counters.decreaseNumber(entity, counterKey, action.actionValue);
+      if ( counter.type === "fraction" ) decreaseFraction(entity, counterKey, actionValue);
+      else decreaseNumber(entity, counterKey, actionValue);
       break;
     case "set":
-      if ( counter.type === "fraction" ) counters.setFraction(entity, counterKey, action.actionValue);
-      else counters.setNumber(entity, counterKey, action.actionValue);
+      if ( counter.type === "fraction" ) setFraction(entity, counterKey, actionValue);
+      else setNumber(entity, counterKey, actionValue);
       break;
     case "check":
-      counters.checkCheckbox(entity, counterKey);
+      checkCheckbox(entity, counterKey);
       break;
     case "uncheck":
-      counters.uncheckCheckbox(entity, counterKey);
+      uncheckCheckbox(entity, counterKey);
       break;
     case "toggle":
-      counters.toggleCheckbox(entity, counterKey);
+      toggleCheckbox(entity, counterKey);
+      break;
+    case "reset":
+      resetCounter(entity, counterKey);
       break;
   }
 }
@@ -492,7 +541,7 @@ function playSound(action) {
   if ( !action.sound?.path ) return;
 
   const volume = action.sound.volume ?? 0.8;
-  AudioHelper.play({ src: action.sound.path, volume, autoplay: true, loop: false }, true);
+  foundry.audio.AudioHelper.play({ src: action.sound.path, volume, autoplay: true, loop: false }, true);
 }
 
 /* -------------------------------------------- */
@@ -513,43 +562,15 @@ async function conditionAction(actor, action, active) {
     return;
   }
 
-  // Check if this is a leveled condition
+  // Leveled conditions change by one level at a time via the system's native handling,
+  // which creates the effect at level 1, clamps at the max level and deletes at level 0
   const conditionConfig = CONFIG.DND5E.conditionTypes[action.conditionId];
   if ( conditionConfig?.levels > 0 && action.conditionId !== "exhaustion" ) {
     const staticId = dnd5e.utils.staticID(`dnd5e${action.conditionId}`);
     const effect = actor.effects.get(staticId) ?? actor.effects.find(e => e.statuses.has(action.conditionId));
-    const currentLevel = effect?.getFlag(MODULE.ID, "conditionLevel") ?? 0;
-    const maxLevel = conditionConfig.levels;
-
-    if ( active === true ) {
-      // Apply: create at level 1, or increment if already active
-      if ( currentLevel === 0 ) {
-        await actor.toggleStatusEffect(action.conditionId, { active: true });
-        const newEffect = actor.effects.get(staticId) ?? actor.effects.find(e => e.statuses.has(action.conditionId));
-        if ( newEffect ) await newEffect.setFlag(MODULE.ID, "conditionLevel", 1);
-      } else if ( currentLevel < maxLevel ) {
-        await effect.setFlag(MODULE.ID, "conditionLevel", currentLevel + 1);
-      }
-    } else if ( active === false ) {
-      // Remove: decrement if level > 1, or remove entirely
-      if ( currentLevel > 1 ) {
-        await effect.setFlag(MODULE.ID, "conditionLevel", currentLevel - 1);
-      } else if ( effect ) {
-        await actor.toggleStatusEffect(action.conditionId, { active: false });
-      }
-    } else if ( currentLevel > 0 ) {
-      // Toggle off: decrement if level > 1, or remove entirely
-      if ( currentLevel > 1 ) {
-        await effect.setFlag(MODULE.ID, "conditionLevel", currentLevel - 1);
-      } else {
-        await actor.toggleStatusEffect(action.conditionId, { active: false });
-      }
-    } else {
-      // Toggle on: create at level 1
-      await actor.toggleStatusEffect(action.conditionId, { active: true });
-      const newEffect = actor.effects.get(staticId) ?? actor.effects.find(e => e.statuses.has(action.conditionId));
-      if ( newEffect ) await newEffect.setFlag(MODULE.ID, "conditionLevel", 1);
-    }
+    const increase = active ?? !effect;
+    if ( !increase && !effect ) return;
+    await actor.toggleStatusEffect(action.conditionId, { levels: increase ? 1 : -1 });
     return;
   }
 
@@ -560,34 +581,43 @@ async function conditionAction(actor, action, active) {
 
 /**
  * Request a roll from an actor's player or execute locally.
- * @param {Actor} actor Actor
- * @param {object} action Action
+ * @param {Actor} actor
+ * @param {object} action
+ * @param {string|null} [workflowName]
  */
-function requestRoll(actor, action) {
+function requestRoll(actor, action, workflowName = null) {
   if ( !action.roll?.type ) return;
 
   const [category, key] = action.roll.type.split(":");
   if ( !category || !key ) return;
 
   const rollConfig = { category, key };
+  if ( workflowName ) rollConfig.workflowName = workflowName;
   const dc = Number(action.roll?.dc);
   if ( Number.isFinite(dc) ) rollConfig.target = dc;
   if ( action.onSuccess ) rollConfig.onSuccess = action.onSuccess;
   if ( action.onFailure ) rollConfig.onFailure = action.onFailure;
 
-  // Find an active player owner for this actor
+  // Request one active player owner to roll, so an actor with several owners is only rolled once
   const owner = game.users.find(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"));
 
-  if ( owner ) {
-    // Socket the roll to the owner's client
-    game.socket.emit(`module.${MODULE.ID}`, {
-      action: "requestRoll",
-      options: { actorUuid: actor.uuid, rollConfig }
-    });
-  } else {
-    // No active player owner — execute locally (e.g., GM-owned NPC)
-    executeRequestedRoll(actor, rollConfig);
-  }
+  if ( owner ) queryUser(owner, "requestRoll", { actorUuid: actor.uuid, rollConfig });
+  else executeRequestedRoll(actor, rollConfig);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Roll a requested roll for the actor's owner on the requested player's client.
+ * @param {object} data
+ * @param {string} data.actorUuid
+ * @param {object} data.rollConfig
+ * @returns {Promise<void>}
+ */
+export async function onRequestRollQuery({ actorUuid, rollConfig }) {
+  const actor = await fromUuid(actorUuid);
+  if ( !actor?.isOwner ) return;
+  await executeRequestedRoll(actor, rollConfig);
 }
 
 /* -------------------------------------------- */
@@ -596,30 +626,45 @@ function requestRoll(actor, action) {
  * Execute a requested roll on an actor.
  * @param {Actor} actor Actor
  * @param {object} rollConfig Roll config
+ * @returns {Promise<D20Roll[]|null|void>} Rolls
  */
 export function executeRequestedRoll(actor, rollConfig) {
-  const { category, key, target, onSuccess, onFailure } = rollConfig;
+  const { category, key, target, onSuccess, onFailure, workflowName } = rollConfig;
   const config = {};
   if ( Number.isFinite(target) ) config.target = target;
 
   const options = {};
   if ( onSuccess ) options.workflowOnSuccess = onSuccess;
   if ( onFailure ) options.workflowOnFailure = onFailure;
+  if ( workflowName ) options.workflowName = workflowName;
   if ( Object.keys(options).length ) {
     config.rolls = [{ options }];
   }
 
   switch (category) {
     case "save":
-      actor.rollSavingThrow({ ...config, ability: key });
-      break;
+      return actor.rollSavingThrow({ ...config, ability: key });
     case "check":
-      actor.rollAbilityCheck({ ...config, ability: key });
-      break;
+      return actor.rollAbilityCheck({ ...config, ability: key });
     case "skill":
-      actor.rollSkill({ ...config, skill: key });
-      break;
+      return actor.rollSkill({ ...config, skill: key });
   }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Show the name of the workflow in the roll dialog and chat card.
+ * @param {object} config
+ * @param {object} dialog
+ * @param {object} message
+ */
+function addWorkflowNameToRoll(config, dialog, message) {
+  const workflowName = config.rolls?.[0]?.options?.workflowName;
+  if ( !workflowName ) return;
+  const dialogWindow = dialog.options?.window;
+  if ( dialogWindow ) dialogWindow.subtitle = [workflowName, dialogWindow.subtitle].filterJoin(" • ");
+  if ( message.data ) message.data.flavor = [workflowName, message.data.flavor].filterJoin(" • ");
 }
 
 /* -------------------------------------------- */
@@ -669,8 +714,9 @@ function actorUpdate(actor, action) {
 function tokenUpdate(actor, action) {
   if ( !action.updatePath || action.updateValue === undefined ) return;
   const token = actor?.isToken ? actor.token : actor?.getActiveTokens()[0];
-  if ( !token ) return;
-  token.document.update({ [action.updatePath]: resolveUpdateValue(actor, action.updateValue) });
+  const tokenDoc = token?.document ?? token;
+  if ( !tokenDoc ) return;
+  tokenDoc.update({ [action.updatePath]: resolveUpdateValue(actor, action.updateValue) });
 }
 
 /* -------------------------------------------- */
@@ -687,7 +733,7 @@ function itemUpdate(item, action) {
 }
 
 /* -------------------------------------------- */
-/*  Request Roll Result Handling                */
+/*  REQUEST ROLL RESULT HANDLING                */
 /* -------------------------------------------- */
 
 /**
@@ -711,11 +757,11 @@ function handleRequestRollResult(rolls, actor) {
     { actor: actor.name, rollTotal, dc, isSuccess, actionCount: Object.keys(actions).length }
   );
 
-  executeWorkflowActions(actions, { entity: actor });
+  executeWorkflowActions(actions, { entity: actor, userId: game.user.id });
 }
 
 /* -------------------------------------------- */
-/*  Hook Handlers                               */
+/*  HOOK HANDLERS                               */
 /* -------------------------------------------- */
 
 /**
@@ -729,7 +775,7 @@ function makeD20RollHandler(eventName) {
     if ( !actor?.isOwner ) return;
     const dieTotal = rolls[0]?.terms[0]?.total;
     handleRequestRollResult(rolls, actor);
-    processEvent(eventName, { actor, dieTotal, rolls, data });
+    processEvent(eventName, { actor, dieTotal, rolls, data, userId: game.user.id });
   };
 }
 
@@ -751,12 +797,13 @@ function handleRollAttack(rolls, data) {
   const actor = data?.subject?.actor;
   if ( !actor?.isOwner ) return;
   const dieTotal = rolls[0]?.terms[0]?.total;
-  processEvent("attackRolled", { actor, dieTotal, rolls, data });
+  const userId = game.user.id;
+  processEvent("attackRolled", { actor, dieTotal, rolls, data, userId });
 
   // Process item-level workflows
   const item = data?.subject?.item;
   if ( item ) {
-    processItemEvent("attackRolled", { item, dieTotal, rolls, data });
+    processItemEvent("attackRolled", { item, dieTotal, rolls, data, userId });
   }
 }
 
@@ -798,7 +845,7 @@ function handleAttackRoll(processConfig, rollConfig, index) {
  */
 function handleRollInitiative(actor, combatants) {
   if ( !actor?.isOwner ) return;
-  processEvent("initiativeRolled", { actor, data: { combatants } });
+  processEvent("initiativeRolled", { actor, data: { combatants }, userId: game.user.id });
 }
 
 /* -------------------------------------------- */
@@ -812,7 +859,7 @@ function handleRollDamage(rolls, data) {
   const actor = data?.subject?.actor;
   if ( !actor?.isOwner ) return;
   const dieTotal = rolls[0]?.total;
-  processEvent("damageRolled", { actor, dieTotal, rolls, data });
+  processEvent("damageRolled", { actor, dieTotal, rolls, data, userId: game.user.id });
 }
 
 /* -------------------------------------------- */
@@ -850,12 +897,12 @@ function handlePreUpdateActor(actor, data, options, userId) {
  * @param {object} data Hook data
  */
 function handleCombatStart(combat, data) {
+  if ( !isPrimaryHandler() ) return;
   Logger.debug(`${LOG_PREFIX} handleCombatStart`, { combatantCount: combat.combatants.size });
+  const firedOnce = new Set();
   combat.combatants.forEach(combatant => {
     const actor = combatant.actor;
-    if ( actor?.isOwner ) {
-      processEvent("startOfCombat", { actor, data });
-    }
+    if ( actor ) processEvent("startOfCombat", { actor, data, firedOnce });
   });
 }
 
@@ -864,19 +911,22 @@ function handleCombatStart(combat, data) {
 /**
  * Fire endOfCombat and zeroHpCombatEnd events on combat deletion.
  * @param {Combat} combat Combat
+ * @param {object} options Hook options
+ * @param {string} userId Triggering user ID
  */
-function handleDeleteCombat(combat) {
+function handleDeleteCombat(combat, options, userId) {
+  if ( !isPrimaryHandler() ) return;
   Logger.debug(`${LOG_PREFIX} handleDeleteCombat`, { combatantCount: combat.combatants.size });
+  const firedOnce = new Set();
   combat.combatants.forEach(combatant => {
     const actor = combatant.actor;
-    if ( actor?.isOwner ) {
-      processEvent("endOfCombat", { actor });
-      const hasZeroHpFlag = getFlag(actor, "zeroHpCombatEnd");
-      Logger.debug(`${LOG_PREFIX} handleDeleteCombat: zeroHpCombatEnd flag`, { actor: actor.name, hasZeroHpFlag });
-      if ( hasZeroHpFlag ) {
-        processEvent("zeroHpCombatEnd", { actor });
-        unsetFlag(actor, "zeroHpCombatEnd");
-      }
+    if ( !actor ) return;
+    processEvent("endOfCombat", { actor, userId, firedOnce });
+    const hasZeroHpFlag = getFlag(actor, "zeroHpCombatEnd");
+    Logger.debug(`${LOG_PREFIX} handleDeleteCombat: zeroHpCombatEnd flag`, { actor: actor.name, hasZeroHpFlag });
+    if ( hasZeroHpFlag ) {
+      processEvent("zeroHpCombatEnd", { actor, userId, firedOnce });
+      unsetFlag(actor, "zeroHpCombatEnd");
     }
   });
 }
@@ -888,19 +938,56 @@ function handleDeleteCombat(combat) {
  * @param {Combat} combat Combat
  * @param {object} data Update data
  * @param {object} options Update options
+ * @param {string} userId Triggering user ID
  */
-function handleUpdateCombat(combat, data, options) {
+function handleUpdateCombat(combat, data, options, userId) {
+  if ( !isPrimaryHandler() ) return;
   Logger.debug(`${LOG_PREFIX} handleUpdateCombat`, { previousCombatantId: combat?.previous?.combatantId, currentCombatant: combat.combatant?.actor?.name });
+  const firedOnce = new Set();
   if ( combat?.previous?.combatantId ) {
     const previousActor = combat.combatants.get(combat.previous.combatantId)?.actor;
-    if ( previousActor?.isOwner ) {
-      processEvent("endOfTurn", { actor: previousActor, data });
+    if ( previousActor ) {
+      processEvent("endOfTurn", { actor: previousActor, data, userId, firedOnce });
+      processEvent("eachTurn", { actor: previousActor, data, userId, firedOnce });
     }
   }
 
   const actor = combat.combatant?.actor;
-  if ( actor?.isOwner ) {
-    processEvent("startOfTurn", { actor, data });
+  if ( actor ) {
+    processEvent("startOfTurn", { actor, data, userId, firedOnce });
+    processEvent("eachTurn", { actor, data, userId, firedOnce });
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Fire day, dawn, and dusk events as world time passes.
+ * @param {number} worldTime
+ * @param {number} deltaTime Elapsed time in seconds
+ * @param {object} options
+ * @param {string} userId
+ */
+function handleUpdateWorldTime(worldTime, deltaTime, options, userId) {
+  if ( !isPrimaryHandler() ) return;
+
+  const deltas = options?.dnd5e?.deltas;
+  if ( !deltas ) return;
+
+  const events = [];
+  if ( deltas.midnights > 0 ) events.push("day");
+  if ( deltas.sunrises > 0 ) events.push("dawn");
+  if ( deltas.sunsets > 0 ) events.push("dusk");
+  if ( !events.length ) return;
+
+  Logger.debug(`${LOG_PREFIX} handleUpdateWorldTime`, { worldTime, deltaTime, events });
+
+  const data = { worldTime, deltaTime, deltas };
+  const firedOnce = new Set();
+  for ( const actor of game.actors ) {
+    for ( const event of events ) {
+      processEvent(event, { actor, data, userId, firedOnce });
+    }
   }
 }
 
@@ -914,7 +1001,7 @@ function handleUpdateCombat(combat, data, options) {
 function handleRest(actor, result) {
   const restType = result.type === "long" ? "longRest" : "shortRest";
   Logger.debug(`${LOG_PREFIX} handleRest`, { actor: actor.name, restType });
-  processEvent(restType, { actor, data: result });
+  processEvent(restType, { actor, data: result, userId: game.user.id });
 }
 
 /* -------------------------------------------- */
@@ -928,7 +1015,7 @@ function handleGroupRest(actor, config) {
   if ( actor.type !== "group" ) return;
   const eventType = config.type === "long" ? "longRest" : "shortRest";
   Logger.debug(`${LOG_PREFIX} handleGroupRest`, { group: actor.name, eventType });
-  processEvent(eventType, { actor, data: config });
+  processEvent(eventType, { actor, data: config, userId: game.user.id });
 }
 
 /* -------------------------------------------- */
@@ -941,7 +1028,7 @@ function handleGroupRest(actor, config) {
  * @param {string} userId Triggering user ID
  */
 function handleUpdateActor(actor, data, options, userId) {
-  if ( !actor.isOwner ) return;
+  if ( !isPrimaryHandler(actor) ) return;
 
   // Fire HP-based events (deferred from preUpdateActor)
   const previousHp = options.customDnd5ePreviousHp;
@@ -953,52 +1040,52 @@ function handleUpdateActor(actor, data, options, userId) {
     Logger.debug(`${LOG_PREFIX} handleUpdateActor: HP events`, { actor: actor.name, previousHp, currentHp });
 
     if ( currentHp === 0 && previousHp > 0 ) {
-      processEvent("zeroHp", { actor, data });
+      processEvent("zeroHp", { actor, data, userId });
     }
     if ( currentHp <= halfHp && previousHp > halfHp ) {
-      processEvent("halfHp", { actor, data });
+      processEvent("halfHp", { actor, data, userId });
     }
     if ( currentHp < previousHp ) {
-      processEvent("loseHp", { actor, dieTotal: previousHp - currentHp, data });
+      processEvent("loseHp", { actor, dieTotal: previousHp - currentHp, data, userId });
     }
     if ( currentHp > previousHp ) {
-      processEvent("gainHp", { actor, dieTotal: currentHp - previousHp, data });
+      processEvent("gainHp", { actor, dieTotal: currentHp - previousHp, data, userId });
     }
   }
 
   // Counter-based events
-  if ( !counters.hasDataChanged(data) ) return;
+  if ( !hasDataChanged(data) ) return;
 
   const settingKey = SETTING_BY_ENTITY_TYPE.COUNTERS[actor.type];
   if ( !settingKey ) return;
-  const merged = counters.mergeCounters(actor, settingKey);
+  const merged = mergeCounters(actor, settingKey);
   if ( !merged ) return;
 
   Logger.debug(`${LOG_PREFIX} handleUpdateActor: counter events`, { actor: actor.name, counterCount: Object.keys(merged).length });
   const previousCounterValues = options.customDnd5ePreviousCounterValues;
 
   for ( const [counterKey, counter] of Object.entries(merged) ) {
-    if ( ["fraction", "number", "pips"].includes(counter.type) ) {
-      const value = counters.getCounterValue(data, counterKey);
+    if ( CONSTANTS.COUNTERS.TYPES.NUMERIC.includes(counter.type) ) {
+      const value = getCounterValue(data, counterKey);
       if ( value !== null && value !== undefined ) {
-        processEvent("counterValue", { actor, data, counterKey, counterValue: value });
+        processEvent("counterValue", { actor, data, counterKey, counterValue: value, userId });
         if ( previousCounterValues ) {
           const oldValue = previousCounterValues[counterKey] ?? 0;
-          if ( value > oldValue ) processEvent("counterValueIncrease", { actor, data, counterKey, counterValue: value });
-          if ( value < oldValue ) processEvent("counterValueDecrease", { actor, data, counterKey, counterValue: value });
+          if ( value > oldValue ) processEvent("counterValueIncrease", { actor, data, counterKey, counterValue: value, userId });
+          if ( value < oldValue ) processEvent("counterValueDecrease", { actor, data, counterKey, counterValue: value, userId });
         }
       }
     }
     if ( counter.type === "checkbox" ) {
-      const value = counters.getCounterValue(data, counterKey);
-      if ( value === true ) processEvent("checked", { actor, data, counterKey, counterValue: value });
-      if ( value === false ) processEvent("unchecked", { actor, data, counterKey, counterValue: value });
+      const value = getCounterValue(data, counterKey);
+      if ( value === true ) processEvent("checked", { actor, data, counterKey, counterValue: value, userId });
+      if ( value === false ) processEvent("unchecked", { actor, data, counterKey, counterValue: value, userId });
     }
     if ( counter.type === "successFailure" ) {
-      const sv = counters.getSuccessFailureValue(data, counterKey, "success");
-      if ( sv !== null ) processEvent("successValue", { actor, data, counterKey, counterValue: sv });
-      const fv = counters.getSuccessFailureValue(data, counterKey, "failure");
-      if ( fv !== null ) processEvent("failureValue", { actor, data, counterKey, counterValue: fv });
+      const sv = getSuccessFailureValue(data, counterKey, "success");
+      if ( sv !== null ) processEvent("successValue", { actor, data, counterKey, counterValue: sv, userId });
+      const fv = getSuccessFailureValue(data, counterKey, "failure");
+      if ( fv !== null ) processEvent("failureValue", { actor, data, counterKey, counterValue: fv, userId });
     }
   }
 }
@@ -1013,51 +1100,69 @@ function handleUpdateActor(actor, data, options, userId) {
  * @param {string} userId Triggering user ID
  */
 function handleUpdateItem(item, data, options, userId) {
-  if ( !item.isOwner ) return;
+  if ( !isPrimaryHandler(item) ) return;
 
   // Check for equipped state changes
   if ( foundry.utils.hasProperty(data, "system.equipped") ) {
     const event = data.system.equipped ? "equip" : "unequip";
-    processItemEvent(event, { item, data });
+    processItemEvent(event, { item, data, userId });
     const actor = item.parent;
     if ( actor?.documentName === "Actor" ) {
-      processEvent(event, { actor });
+      processEvent(event, { actor, userId });
     }
   }
 
   // Counter changes
-  if ( !counters.hasDataChanged(data) ) return;
+  if ( !hasDataChanged(data) ) return;
 
-  const merged = counters.mergeCounters(item, SETTING_BY_ENTITY_TYPE.COUNTERS.item);
+  const merged = mergeCounters(item, SETTING_BY_ENTITY_TYPE.COUNTERS.item);
   if ( !merged ) return;
 
   Logger.debug(`${LOG_PREFIX} handleUpdateItem`, { item: item.name, counterCount: Object.keys(merged).length });
   const previousCounterValues = options.customDnd5ePreviousCounterValues;
 
   for ( const [counterKey, counter] of Object.entries(merged) ) {
-    if ( ["fraction", "number", "pips"].includes(counter.type) ) {
-      const value = counters.getCounterValue(data, counterKey);
+    if ( CONSTANTS.COUNTERS.TYPES.NUMERIC.includes(counter.type) ) {
+      const value = getCounterValue(data, counterKey);
       if ( value !== null && value !== undefined ) {
-        processItemEvent("counterValue", { item, data, counterKey, counterValue: value });
+        processItemEvent("counterValue", { item, data, counterKey, counterValue: value, userId });
         if ( previousCounterValues ) {
           const oldValue = previousCounterValues[counterKey] ?? 0;
-          if ( value > oldValue ) processItemEvent("counterValueIncrease", { item, data, counterKey, counterValue: value });
-          if ( value < oldValue ) processItemEvent("counterValueDecrease", { item, data, counterKey, counterValue: value });
+          if ( value > oldValue ) processItemEvent("counterValueIncrease", { item, data, counterKey, counterValue: value, userId });
+          if ( value < oldValue ) processItemEvent("counterValueDecrease", { item, data, counterKey, counterValue: value, userId });
         }
       }
     }
     if ( counter.type === "checkbox" ) {
-      const value = counters.getCounterValue(data, counterKey);
-      if ( value === true ) processItemEvent("checked", { item, data, counterKey, counterValue: value });
-      if ( value === false ) processItemEvent("unchecked", { item, data, counterKey, counterValue: value });
+      const value = getCounterValue(data, counterKey);
+      if ( value === true ) processItemEvent("checked", { item, data, counterKey, counterValue: value, userId });
+      if ( value === false ) processItemEvent("unchecked", { item, data, counterKey, counterValue: value, userId });
     }
     if ( counter.type === "successFailure" ) {
-      const sv = counters.getSuccessFailureValue(data, counterKey, "success");
-      if ( sv !== null ) processItemEvent("successValue", { item, data, counterKey, counterValue: sv });
-      const fv = counters.getSuccessFailureValue(data, counterKey, "failure");
-      if ( fv !== null ) processItemEvent("failureValue", { item, data, counterKey, counterValue: fv });
+      const sv = getSuccessFailureValue(data, counterKey, "success");
+      if ( sv !== null ) processItemEvent("successValue", { item, data, counterKey, counterValue: sv, userId });
+      const fv = getSuccessFailureValue(data, counterKey, "failure");
+      if ( fv !== null ) processItemEvent("failureValue", { item, data, counterKey, counterValue: fv, userId });
     }
   }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Fire itemUsed events after an activity is used.
+ * @param {Activity} activity Activity that was used
+ * @param {object} usageConfig Usage config
+ * @param {object} results Usage results
+ */
+function handleUseActivity(activity, usageConfig, results) {
+  const item = activity?.item;
+  if ( !item ) return;
+  const actor = activity?.actor;
+  const userId = game.user.id;
+
+  if ( item.isOwner ) processItemEvent("itemUsed", { item, userId });
+  if ( actor?.isOwner ) processEvent("itemUsed", { actor, item, userId });
 }
 
 /* -------------------------------------------- */
@@ -1082,14 +1187,14 @@ function getEffectActor(effect) {
  */
 function handleCreateActiveEffect(effect, options, userId) {
   const actor = getEffectActor(effect);
-  if ( !actor || !actor.isOwner ) return;
+  if ( !actor || !isPrimaryHandler(actor) ) return;
   // Fire condition events for status effects
   for ( const statusId of effect.statuses ) {
-    processEvent("conditionApplied", { actor, conditionId: statusId });
+    processEvent("conditionApplied", { actor, conditionId: statusId, userId });
   }
   // Fire effect event if effect is not disabled
   if ( !effect.disabled && effect.name ) {
-    processEvent("effectEnabled", { actor, effectName: effect.name });
+    processEvent("effectEnabled", { actor, effectName: effect.name, userId });
   }
 }
 
@@ -1101,14 +1206,14 @@ function handleCreateActiveEffect(effect, options, userId) {
  */
 function handleDeleteActiveEffect(effect, options, userId) {
   const actor = getEffectActor(effect);
-  if ( !actor || !actor.isOwner ) return;
+  if ( !actor || !isPrimaryHandler(actor) ) return;
   // Fire condition events for status effects
   for ( const statusId of effect.statuses ) {
-    processEvent("conditionRemoved", { actor, conditionId: statusId });
+    processEvent("conditionRemoved", { actor, conditionId: statusId, userId });
   }
   // Fire effect event if effect was not disabled
   if ( !effect.disabled && effect.name ) {
-    processEvent("effectDisabled", { actor, effectName: effect.name });
+    processEvent("effectDisabled", { actor, effectName: effect.name, userId });
   }
 }
 
@@ -1122,14 +1227,14 @@ function handleDeleteActiveEffect(effect, options, userId) {
 function handleUpdateActiveEffect(effect, changes, options, userId) {
   if ( !("disabled" in (changes ?? {})) ) return;
   const actor = getEffectActor(effect);
-  if ( !actor || !actor.isOwner ) return;
+  if ( !actor || !isPrimaryHandler(actor) ) return;
   if ( !effect.name ) return;
   const eventName = changes.disabled ? "effectDisabled" : "effectEnabled";
-  processEvent(eventName, { actor, effectName: effect.name });
+  processEvent(eventName, { actor, effectName: effect.name, userId });
 }
 
 /* -------------------------------------------- */
-/*  Event-to-Hook Mapping                       */
+/*  EVENT-TO-HOOK MAPPING                       */
 /* -------------------------------------------- */
 
 export const EVENT_TO_HOOK = {
@@ -1152,6 +1257,10 @@ export const EVENT_TO_HOOK = {
   zeroHpCombatEnd: "deleteCombat",
   startOfTurn: "updateCombat",
   endOfTurn: "updateCombat",
+  eachTurn: "updateCombat",
+  day: "updateWorldTime",
+  dawn: "updateWorldTime",
+  dusk: "updateWorldTime",
   shortRest: "dnd5e.restCompleted",
   longRest: "dnd5e.restCompleted",
   counterValue: "updateActor",
@@ -1167,7 +1276,8 @@ export const EVENT_TO_HOOK = {
   effectEnabled: "createActiveEffect",
   effectDisabled: "deleteActiveEffect",
   equip: "updateItem",
-  unequip: "updateItem"
+  unequip: "updateItem",
+  itemUsed: "dnd5e.postUseActivity"
 };
 
 /** Mapping from item counter events to the item hook. */
@@ -1182,7 +1292,8 @@ export const ITEM_EVENT_TO_HOOK = {
   failureValue: "updateItem",
   attackRolled: "dnd5e.rollAttack",
   equip: "updateItem",
-  unequip: "updateItem"
+  unequip: "updateItem",
+  itemUsed: "dnd5e.postUseActivity"
 };
 
 /** Mapping from requestRoll category to the event key used for hook registration. */
@@ -1210,6 +1321,7 @@ const HOOK_HANDLERS = {
   combatStart: handleCombatStart,
   deleteCombat: handleDeleteCombat,
   updateCombat: handleUpdateCombat,
+  updateWorldTime: handleUpdateWorldTime,
   "dnd5e.restCompleted": handleRest,
   "dnd5e.longRest": handleGroupRest,
   "dnd5e.shortRest": handleGroupRest,
@@ -1217,11 +1329,12 @@ const HOOK_HANDLERS = {
   updateItem: handleUpdateItem,
   createActiveEffect: handleCreateActiveEffect,
   deleteActiveEffect: handleDeleteActiveEffect,
-  updateActiveEffect: handleUpdateActiveEffect
+  updateActiveEffect: handleUpdateActiveEffect,
+  "dnd5e.postUseActivity": handleUseActivity
 };
 
 /* -------------------------------------------- */
-/*  Event-Indexed Registry                      */
+/*  EVENT-INDEXED REGISTRY                      */
 /* -------------------------------------------- */
 
 /**
@@ -1263,8 +1376,9 @@ function matchTriggerAgainstEvent(trigger, event, {
   // Roll subtype triggers must match the specific ability/skill/tool
   if ( trigger.rollSubtype && trigger.rollSubtype !== rollSubtype ) return false;
 
-  // Condition triggers must match the conditionId
-  if ( trigger.conditionId && trigger.conditionId !== conditionId ) return false;
+  // Condition triggers must match the conditionId ("any"/"all" match any condition)
+  if ( trigger.conditionId && !["any", "all"].includes(trigger.conditionId)
+    && trigger.conditionId !== conditionId ) return false;
 
   // Effect triggers must match the effectName (case-insensitive)
   if ( trigger.effectName && (!effectName || trigger.effectName.toLowerCase() !== effectName.toLowerCase()) ) {
@@ -1319,8 +1433,8 @@ function matchTriggerAgainstEvent(trigger, event, {
   // Determine actual value for comparison
   const isCounterValueTrigger = ["counterValue", "successValue", "failureValue", "conditionLevelChanged"].includes(trigger.event);
   const actualValue = isCounterValueTrigger ? counterValue : dieTotal;
-  const targetValue = (typeof trigger.value === "string" && trigger.value.startsWith("@"))
-    ? counters.resolveTriggerValue(actor, trigger.value) : Number(trigger.value);
+  const targetValue = (typeof trigger.value === "string" && trigger.value.includes("@"))
+    ? resolveTriggerValue(actor, trigger.value) : Number(trigger.value);
 
   const result = compareValues(actualValue, trigger.operator, targetValue);
   Logger.debug(`${LOG_PREFIX} matchTriggerAgainstEvent: value comparison`, { event, actualValue, operator: trigger.operator, targetValue, result });
@@ -1352,17 +1466,17 @@ function checkTriggerState(trigger, entity) {
       return pct != null ? pct <= 50 : true;
     }
     case "conditionApplied": {
-      if ( !trigger.conditionId ) return true;
+      if ( !trigger.conditionId || ["any", "all"].includes(trigger.conditionId) ) return true;
       return actor?.statuses?.has(trigger.conditionId) ?? true;
     }
     case "conditionRemoved": {
-      if ( !trigger.conditionId ) return true;
+      if ( !trigger.conditionId || ["any", "all"].includes(trigger.conditionId) ) return true;
       return !(actor?.statuses?.has(trigger.conditionId) ?? false);
     }
     case "conditionLevelChanged": {
       if ( !trigger.conditionId || trigger.value === undefined || trigger.value === "" || trigger.value === null ) return true;
       const effect = actor?.effects?.find(e => e.statuses.has(trigger.conditionId));
-      const level = effect?.getFlag("custom-dnd5e", "conditionLevel") ?? 0;
+      const level = effect?.system?.level ?? effect?.getFlag(MODULE.ID, "conditionLevel") ?? 0;
       const targetValue = Number(trigger.value);
       return compareValues(level, trigger.operator, targetValue);
     }
@@ -1377,7 +1491,8 @@ function checkTriggerState(trigger, entity) {
       return !(actor?.effects?.some(e => !e.disabled && e.name?.toLowerCase() === name) ?? false);
     }
     case "startOfTurn":
-    case "endOfTurn": {
+    case "endOfTurn":
+    case "eachTurn": {
       return game.combat?.combatant?.actor === actor;
     }
     case "startOfCombat":
@@ -1391,14 +1506,14 @@ function checkTriggerState(trigger, entity) {
       const rawKey = trigger.counterKey.startsWith("counters.") ? trigger.counterKey : `counters.${trigger.counterKey}`;
       let actualValue;
       if ( trigger.event === "successValue" ) {
-        actualValue = counters.getSuccessFailureValue(entity, rawKey, "success");
+        actualValue = getSuccessFailureValue(entity, rawKey, "success");
       } else if ( trigger.event === "failureValue" ) {
-        actualValue = counters.getSuccessFailureValue(entity, rawKey, "failure");
+        actualValue = getSuccessFailureValue(entity, rawKey, "failure");
       } else {
-        actualValue = counters.getCounterValue(entity, rawKey);
+        actualValue = getCounterValue(entity, rawKey);
       }
-      const targetValue = (typeof trigger.value === "string" && trigger.value.startsWith("@"))
-        ? counters.resolveTriggerValue(entity, trigger.value) : Number(trigger.value);
+      const targetValue = (typeof trigger.value === "string" && trigger.value.includes("@"))
+        ? resolveTriggerValue(entity, trigger.value) : Number(trigger.value);
       return compareValues(actualValue, trigger.operator, targetValue);
     }
     // Event-only triggers that cannot be state-checked — treat as satisfied
@@ -1464,6 +1579,8 @@ function workflowMatchesEvent(workflow, event, {
  * @param {number|null} [options.counterValue] Counter value
  * @param {string|null} [options.conditionId] Condition ID
  * @param {string|null} [options.effectName] Effect name
+ * @param {string|null} [options.userId] ID of the user who triggered the event
+ * @param {Set<object>|null} [options.firedOnce] Shared set tracking workflows already executed
  */
 function processEvent(event, {
   actor,
@@ -1473,7 +1590,9 @@ function processEvent(event, {
   counterKey = null,
   counterValue = null,
   conditionId = null,
-  effectName = null
+  effectName = null,
+  userId = null,
+  firedOnce = null
 }) {
   if ( !actor ) return;
 
@@ -1511,17 +1630,25 @@ function processEvent(event, {
     Logger.debug(`${LOG_PREFIX} Workflow match result`, { name: workflow.name, event, matches });
     if ( !matches ) continue;
 
+    if ( workflow.fireMode === "once" && firedOnce ) {
+      if ( firedOnce.has(workflow) ) continue;
+      firedOnce.add(workflow);
+    }
+
     // Execute ALL actions in the workflow — resolve group members if target is "members"
     const actions = workflow.actions || {};
     if ( workflow.target === "members" && actor.type === "group" && actor.system?.members ) {
       for ( const { actor: memberActor } of actor.system.members ) {
         if ( !memberActor ) continue;
-        executeWorkflowActions(actions,
-          { entity: memberActor, event, dieTotal, rolls, data, counterKey, counterValue }
-        );
+        executeWorkflowActions(actions, {
+          entity: memberActor, event, dieTotal, rolls, data, counterKey, counterValue, userId,
+          workflowName: workflow.name
+        });
       }
     } else {
-      executeWorkflowActions(actions, { entity: actor, event, dieTotal, rolls, data, counterKey, counterValue });
+      executeWorkflowActions(actions,
+        { entity: actor, event, dieTotal, rolls, data, counterKey, counterValue, userId, workflowName: workflow.name }
+      );
     }
   }
 
@@ -1600,13 +1727,14 @@ function workflowMatchesPreRollEvent(workflow, event, context) {
 
 /**
  * Execute the actions in a pre-roll workflow.
- * @param {object} actions Actions
- * @param {object} options Options
- * @param {Actor|Item} options.entity Entity (actor or item)
+ * @param {object} actions
+ * @param {object} options
+ * @param {Actor|Item} options.entity Actor or item
  * @param {object} options.context Pre-roll context
- * @param {object} options.rollConfig Roll config
+ * @param {object} options.rollConfig
+ * @param {string|null} [options.workflowName]
  */
-function executePreRollActions(actions, { entity, context, rollConfig }) {
+function executePreRollActions(actions, { entity, context, rollConfig, workflowName = null }) {
   for ( const action of Object.values(actions) ) {
     if ( action.type === "addRollBonus" ) {
       if ( !rollConfig ) continue;
@@ -1628,13 +1756,14 @@ function executePreRollActions(actions, { entity, context, rollConfig }) {
         targetToken: context.targetToken,
         rollConfig,
         config: context.config,
-        event: "attackRoll"
+        event: "attackRoll",
+        userId: game.user.id
       };
       executeMacro(action.macroUuid, macroArgs);
       continue;
     }
 
-    handleAction(action, { entity, event: "attackRoll" });
+    handleAction(action, { entity, event: "attackRoll", userId: game.user.id, workflowName });
   }
 }
 
@@ -1669,7 +1798,7 @@ function processPreRollEvent(event, { actor, item = null, context, rollConfig })
   for ( const workflow of [...worldWorkflows, ...actorWorkflows] ) {
     if ( workflow.actorTypes?.length && !workflow.actorTypes.includes(actor.type) ) continue;
     if ( !workflowMatchesPreRollEvent(workflow, event, context) ) continue;
-    executePreRollActions(workflow.actions || {}, { entity: actor, context, rollConfig });
+    executePreRollActions(workflow.actions || {}, { entity: actor, context, rollConfig, workflowName: workflow.name });
   }
 
   // World item workflows + per-item workflows
@@ -1685,7 +1814,7 @@ function processPreRollEvent(event, { actor, item = null, context, rollConfig })
 
     for ( const workflow of [...worldItemWorkflows, ...itemWorkflows] ) {
       if ( !workflowMatchesPreRollEvent(workflow, event, context) ) continue;
-      executePreRollActions(workflow.actions || {}, { entity: item, context, rollConfig });
+      executePreRollActions(workflow.actions || {}, { entity: item, context, rollConfig, workflowName: workflow.name });
     }
   }
 
@@ -1705,9 +1834,10 @@ function processPreRollEvent(event, { actor, item = null, context, rollConfig })
  * @param {number|null} [options.dieTotal] Die total
  * @param {Roll[]|null} [options.rolls] Rolls
  * @param {string|null} [options.rollSubtype] Roll subtype
+ * @param {string|null} [options.userId] ID of the user who triggered the event
  */
 function processItemEvent(event, { item, data = null, counterKey = null, counterValue = null,
-  dieTotal = null, rolls = null, rollSubtype = null }) {
+  dieTotal = null, rolls = null, rollSubtype = null, userId = null }) {
   if ( !item ) return;
 
   Logger.debug(`${LOG_PREFIX} processItemEvent`, { item: item.name, event, counterKey, counterValue });
@@ -1740,7 +1870,9 @@ function processItemEvent(event, { item, data = null, counterKey = null, counter
 
     // Execute ALL actions in the workflow
     const actions = workflow.actions || {};
-    executeWorkflowActions(actions, { entity: item, event, data, counterKey, counterValue });
+    executeWorkflowActions(actions, {
+      entity: item, event, data, counterKey, counterValue, userId, workflowName: workflow.name
+    });
   }
 
   Logger.debug(`${LOG_PREFIX} processItemEvent complete`);
@@ -2005,7 +2137,7 @@ export function ensureEventHooks(workflows, entityType = "actor") {
 }
 
 /* -------------------------------------------- */
-/*  Public API                                  */
+/*  PUBLIC API                                  */
 /* -------------------------------------------- */
 
 /**
@@ -2063,10 +2195,10 @@ function executeWorkflow(identifier, entity, { event = "macro" } = {}) {
   if ( workflow.target === "members" && entity.type === "group" && entity.system?.members ) {
     for ( const { actor: memberActor } of entity.system.members ) {
       if ( !memberActor ) continue;
-      executeWorkflowActions(actions, { entity: memberActor, event });
+      executeWorkflowActions(actions, { entity: memberActor, event, workflowName: workflow.name });
     }
   } else {
-    executeWorkflowActions(actions, { entity, event });
+    executeWorkflowActions(actions, { entity, event, workflowName: workflow.name });
   }
 
   return true;

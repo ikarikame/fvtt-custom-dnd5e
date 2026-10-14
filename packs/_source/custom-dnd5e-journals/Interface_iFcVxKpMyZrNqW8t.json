@@ -1,0 +1,299 @@
+{
+  "name": "Interface",
+  "_id": "iFcVxKpMyZrNqW8t",
+  "pages": [
+    {
+      "sort": 100000,
+      "name": "Tokens",
+      "type": "text",
+      "_id": "tKpMxV2bRsNqWy8k",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Apply Elevation to Selected</h2><p>When applying elevation via a token's HUD, apply it to all selected tokens. This is useful for moving a group of tokens to the same elevation at once, such as when the party ascends a staircase or flies to a new height.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Toggle Status Effects on Selected</h2><p>When toggling a status effect via a token's HUD, toggle it for all selected tokens. This is useful for applying or removing a condition from multiple tokens at once, such as applying the Frightened condition to a group of enemies.</p><p>Requires a reload when changed.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.361",
+        "systemId": "dnd5e",
+        "systemVersion": "5.2.5",
+        "createdTime": 1778500000000,
+        "modifiedTime": 1779116628352,
+        "lastModifiedBy": "2Ab5BheRvt8es88G",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.tKpMxV2bRsNqWy8k"
+    },
+    {
+      "sort": 125000,
+      "name": "Token Border",
+      "type": "text",
+      "_id": "tBdMxV2bRsNzWy8q",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Enable</h2><p>Enable custom token border. When disabled, Foundry's default token border is used and the options below have no effect.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Shape</h2><p>Choose the shape of the token's border when it is selected or hovered. Options are <em>Circle</em> and <em>Square</em>. The default is <em>Square</em>.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Thickness</h2><p>Line thickness of the token border in pixels. The default is <code>6</code>.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Scale</h2><p>Multiplier applied to the token border size relative to the token. <code>1</code> sits flush with the token edge, <code>1.1</code> sits just outside, <code>0.9</code> sits just inside.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Scale With Token</h2><p>When enabled, the token border is scaled to the token's image scale. When disabled, the border is scaled to the token's grid size.</p><p>Requires a reload when changed.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.361",
+        "systemId": "dnd5e",
+        "systemVersion": "5.2.5",
+        "createdTime": 1778500000000,
+        "modifiedTime": 1778862066773,
+        "lastModifiedBy": "2Ab5BheRvt8es88G",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.tBdMxV2bRsNzWy8q"
+    },
+    {
+      "sort": 75000,
+      "name": "Radial Status Effects",
+      "type": "text",
+      "_id": "rSeMxV2bRsNzWy8q",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Radial Status Effects</h2><p>When enabled, status effect icons are displayed in a circular layout around the token rather than the default grid layout. Icons are shown with a circular background.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Click to Toggle</h2><p>When enabled, allows clicking a radial status effect icon to disable it on left-click or delete on Shift-click. Conditions are always deleted.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.361",
+        "systemId": "dnd5e",
+        "systemVersion": "5.2.5",
+        "createdTime": 1778500000000,
+        "modifiedTime": 1779090871875,
+        "lastModifiedBy": "2Ab5BheRvt8es88G",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.rSeMxV2bRsNzWy8q"
+    },
+    {
+      "sort": 175000,
+      "name": "Token Distance",
+      "type": "text",
+      "_id": "tDmVcXrZkHnYjLwP",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Token Distance</h2><p>When enabled, displays the distance to a token when hovering over it. Holding the configurable keybinding (Alt by default) shows distances to all visible tokens at once.</p><p>The source token is the user's currently controlled token, or the first token of their assigned character.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">View Role</h2><p>The minimum role required to see token distance labels. For example, set this to <em>Assistant</em> to hide distances from players. The default is <em>Player</em>, so everyone with at least Player permissions sees distances.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.361",
+        "systemId": "dnd5e",
+        "systemVersion": "5.2.5",
+        "createdTime": 1778500000000,
+        "modifiedTime": 1778500000000,
+        "lastModifiedBy": "0wJRsV2r9Hv1a7q0",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.tDmVcXrZkHnYjLwP"
+    },
+    {
+      "sort": -100000,
+      "name": "Canvas",
+      "type": "text",
+      "_id": "cNvBjMx5rZh9LnYt",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Ruler Travel Time</h2><p>When enabled, the measuring tool displays estimated D&amp;D 5e travel time below the distance measurement. Three travel paces are shown:</p><ul><li><p><span style=\"display:inline-block;width:1.25em;text-align:center\" class=\"fa-solid fa-person-running\">​</span> <strong>Fast pace</strong> — 400 feet per minute, 4 miles per hour, 30 miles per day</p></li><li><p><span style=\"display:inline-block;width:1.25em;text-align:center\" class=\"fa-solid fa-person-walking\">​</span> <strong>Normal pace</strong> — 300 feet per minute, 3 miles per hour, 24 miles per day</p></li><li><p><span style=\"display:inline-block;width:1.25em;text-align:center\" class=\"fa-solid fa-person-hiking\">​</span> <strong>Slow pace</strong> — 200 feet per minute, 2 miles per hour, 18 miles per day</p></li></ul><p>When the ruler is started from a hovered token, the travel time is based on the token's current movement action (Walk, Fly, Swim, etc.) and speed. The movement type is displayed above the paces. When the ruler is started from empty space, the standard 30 feet per round speed is used.</p><p>Travel time uses 8-hour travel days as per the standard D&amp;D 5e rules. Travel time is not displayed during combat. This setting only applies when the grid units are set to feet or miles.</p><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Show Pressed Keys</h2><p>When enabled, an icon appears near the cursor when the Skip Dialog, Advantage, Disadvantage, or Use Probabilistic Damage keys are pressed while hovering over a rollable element such as an attack button or item use button. This provides a visual indicator of the active modifier before clicking.</p><p>Requires a reload when changed.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.368",
+        "systemId": "dnd5e",
+        "systemVersion": "5.2.5",
+        "createdTime": 1778500000000,
+        "modifiedTime": 1790624043454,
+        "lastModifiedBy": "A9B1HvNBg9rKYqtb",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.cNvBjMx5rZh9LnYt"
+    },
+    {
+      "sort": 0,
+      "name": "Chat",
+      "type": "text",
+      "_id": "cHbDxV2pKs5RmTbW",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Chat Command Shorthands</h2><p>The D&amp;D 5e system provides chat commands that can be entered into the chat input: <code>/attack</code>, <code>/check</code>, <code>/concentration</code>, <code>/damage</code>, <code>/heal</code>, <code>/save</code>, <code>/skill</code> and <code>/tool</code>. They use the same options as the system's text enrichers.</p><p>When enabled, the following shorthand aliases are added:</p><ul><li><code>/a</code> &mdash; <code>/attack</code> (e.g. <code>/a +5</code>)</li><li><code>/c</code> &mdash; <code>/check</code> (e.g. <code>/c ath 12</code>)</li><li><code>/con</code> &mdash; <code>/concentration</code> (e.g. <code>/con 10</code>)</li><li><code>/d</code> &mdash; <code>/damage</code> (e.g. <code>/d 2d6 fire</code>)</li><li><code>/h</code> &mdash; <code>/heal</code> (e.g. <code>/h 2d4+2</code>)</li><li><code>/k</code> &mdash; <code>/skill</code> (e.g. <code>/k prc 15</code>)</li><li><code>/s</code> &mdash; <code>/save</code> (e.g. <code>/s dex 15</code>)</li><li><code>/t</code> &mdash; <code>/tool</code> (e.g. <code>/t thief</code>)</li></ul><p>Check, save, skill and tool commands roll immediately for the selected tokens. Add <code>request</code> to post a roll request card to chat instead (e.g. <code>/s dex 15 request</code>). Multiple damage parts can be split with <code>&amp;</code> (e.g. <code>/d 2d10+8[piercing] &amp; 2d6[fire]</code>).</p><p>Requires a reload when changed.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "ownership": {
+        "default": -1,
+        "0wJRsV2r9Hv1a7q0": 3
+      },
+      "flags": {},
+      "_stats": {
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "coreVersion": "14.361",
+        "systemId": "dnd5e",
+        "systemVersion": "5.2.5",
+        "createdTime": 1778500000000,
+        "modifiedTime": 1789211303330,
+        "lastModifiedBy": "2Ab5BheRvt8es88G",
+        "exportSource": null
+      },
+      "category": null,
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.cHbDxV2pKs5RmTbW"
+    },
+    {
+      "sort": 275000,
+      "name": "Token HUD",
+      "type": "text",
+      "_id": "XlGcFavikph0rgVV",
+      "system": {},
+      "title": {
+        "show": true,
+        "level": 1
+      },
+      "image": {},
+      "text": {
+        "format": 1,
+        "content": "<h2 class=\"custom-dnd5e-h2\">Token HUD Improvements</h2><p>When enabled, improves the Token HUD with the following features:</p><ul><li><p><strong>Hover-to-open palettes</strong>. Hovering over the Status Effects or Movement Actions buttons opens the palette automatically.</p></li><li><p><strong>Button styling</strong>. Enhanced feedback for status effect icons and control buttons.</p></li><li><p><strong>Fixed HUD size</strong>. The Token HUD maintains a consistent size on screen regardless of the canvas zoom level.</p></li></ul><p>Requires a reload when changed.</p><h2 class=\"custom-dnd5e-h2\">Scale</h2><p>Overall scale of the Token HUD when Token HUD Improvements is enabled.</p><p>Requires a reload when changed.</p>"
+      },
+      "video": {
+        "controls": true,
+        "volume": 0.5
+      },
+      "src": null,
+      "category": null,
+      "ownership": {
+        "default": -1,
+        "2Ab5BheRvt8es88G": 3
+      },
+      "flags": {},
+      "_stats": {
+        "coreVersion": "14.361",
+        "systemId": "dnd5e",
+        "systemVersion": "5.3.3",
+        "createdTime": 1779116618530,
+        "modifiedTime": 1779116718662,
+        "lastModifiedBy": "2Ab5BheRvt8es88G",
+        "compendiumSource": null,
+        "duplicateSource": null,
+        "exportSource": null
+      },
+      "_key": "!journal.pages!iFcVxKpMyZrNqW8t.XlGcFavikph0rgVV"
+    }
+  ],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0,
+    "0wJRsV2r9Hv1a7q0": 3
+  },
+  "flags": {},
+  "_stats": {
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "coreVersion": "13.351",
+    "systemId": "dnd5e",
+    "systemVersion": "5.2.5",
+    "createdTime": 1778500000000,
+    "modifiedTime": 1778500000000,
+    "lastModifiedBy": "0wJRsV2r9Hv1a7q0",
+    "exportSource": null
+  },
+  "categories": [],
+  "_key": "!journal!iFcVxKpMyZrNqW8t"
+}

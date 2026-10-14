@@ -1,6 +1,6 @@
-import { CONSTANTS } from "./constants.js";
+import { CONSTANTS, SYSTEM_MANAGED_STATUSES } from "./constants.js";
 import { registerSettings as registerChatCommandsSetting, registerHooks as registerChatCommandsHooks } from "./chat-commands.js";
-import { registerSettings as registerCursorLabelSettings, registerHooks as registerCursorLabelHooks } from "./cursor-label.js";
+import { registerSettings as registerCursorLabelSettings, registerHooks as registerCursorLabelHooks } from "./interface/cursor-label.js";
 import { getSetting, registerSetting } from "./utils.js";
 
 /**
@@ -50,20 +50,7 @@ function registerSettings() {
       name: game.i18n.localize(CONSTANTS.TOKEN.SETTING.TOGGLE_STATUS_EFFECT_ON_SELECTED_TOKENS.NAME),
       hint: game.i18n.localize(CONSTANTS.TOKEN.SETTING.TOGGLE_STATUS_EFFECT_ON_SELECTED_TOKENS.HINT),
       scope: "world",
-      config: true,
-      type: Boolean,
-      default: false,
-      requiresReload: true
-    }
-  );
-
-  registerSetting(
-    CONSTANTS.TOKEN.SETTING.TOGGLE_STATUS_EFFECT_ON_SELECTED_TOKENS.KEY,
-    {
-      name: game.i18n.localize(CONSTANTS.TOKEN.SETTING.TOGGLE_STATUS_EFFECT_ON_SELECTED_TOKENS.NAME),
-      hint: game.i18n.localize(CONSTANTS.TOKEN.SETTING.TOGGLE_STATUS_EFFECT_ON_SELECTED_TOKENS.HINT),
-      scope: "world",
-      config: true,
+      config: false,
       type: Boolean,
       default: false,
       requiresReload: true
@@ -76,7 +63,7 @@ function registerSettings() {
       name: game.i18n.localize(CONSTANTS.TOKEN.SETTING.APPLY_ELEVATION_TO_SELECTED_TOKENS.NAME),
       hint: game.i18n.localize(CONSTANTS.TOKEN.SETTING.APPLY_ELEVATION_TO_SELECTED_TOKENS.HINT),
       scope: "world",
-      config: true,
+      config: false,
       type: Boolean,
       default: false,
       requiresReload: true
@@ -119,6 +106,7 @@ function registerHooks() {
  */
 async function toggleEffectOnSelected(active, activeEffect) {
   if ( canvas.tokens.controlled.length <= 1 || activeEffect.origin || activeEffect?.flags["custom-dnd5e"]?.ignore ) return;
+  if ( [...activeEffect.statuses].some(status => SYSTEM_MANAGED_STATUSES.has(status)) ) return;
 
   const statusId = [...activeEffect.statuses][0];
   const overlay = activeEffect?.flags?.core?.overlay ?? false;
@@ -155,6 +143,18 @@ function applyElevationToSelected(token, data, options, id) {
   if ( !controlledTokens.length ) return;
 
   controlledTokens[0].document.update({ elevation });
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Set CONFIG.DND5E.equipmentTypes using CONFIG.DND5E.miscEquipmentTypes and CONFIG.DND5E.armorTypes
+ */
+export function setEquipmentTypes() {
+  CONFIG.DND5E.equipmentTypes = {
+    ...CONFIG.DND5E.miscEquipmentTypes,
+    ...CONFIG.DND5E.armorTypes
+  };
 }
 
 /* -------------------------------------------- */

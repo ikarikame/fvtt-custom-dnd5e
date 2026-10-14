@@ -1,4 +1,4 @@
-[![Discord](https://img.shields.io/discord/1479823526813892790?style=for-the-badge)](https://discord.gg/AyaGmYPfx)
+[![Discord](https://img.shields.io/discord/1479823526813892790?style=for-the-badge)](https://discord.gg/JN3PUxPbYx)
  ![Downloads](https://img.shields.io/github/downloads/Larkinabout/fvtt-custom-dnd5e/latest/module.zip?color=2b82fc&label=DOWNLOADS&style=for-the-badge) [![Forge Installs](https://img.shields.io/badge/dynamic/json?label=Forge%20Installs&query=package.installs&suffix=%25&url=https%3A%2F%2Fforge-vtt.com%2Fapi%2Fbazaar%2Fpackage%2Fcustom-dnd5e&colorB=448d34&style=for-the-badge)](https://forge-vtt.com/bazaar#package=custom-dnd5e)
 
 # Custom D&D 5e
@@ -21,16 +21,20 @@ For full attribution and licensing details, see [ATTRIBUTION.md](ATTRIBUTION.md)
 - [Workflows](#workflows)
 - [Configurations](#configurations)
 - [Configure Encumbrance](#configure-encumbrance)
+- [Configure Interface](#configure-interface)
 - [Configure Rolls](#configure-rolls)
 - [Actor Sheet](#actor-sheet)
 - [Item Sheet](#item-sheet)
+- [Item Interactions](#item-interactions)
 - [Smaller Form Character Sheet](#smaller-form-character-sheet)
-- [Chat Commands](#chat-commands)
+- [Chat Command Shorthands](#chat-command-shorthands)
 - [Show Pressed Keys](#show-pressed-keys)
 - [Ruler Travel Time](#ruler-travel-time)
 - [Animations](#animations)
 - [Radial Status Effects](#radial-status-effects)
+- [Condition Levels](#condition-levels)
 - [Token Border Shape](#token-border-shape)
+- [Token Distance](#token-distance)
 - [Token HUD Improvements](#token-hud-improvements)
 - [Apply Elevation to Selected Tokens](#apply-elevation-to-selected-tokens)
 - [Toggle Status Effects on Selected Tokens](#toggle-status-effects-on-selected-tokens)
@@ -75,7 +79,7 @@ Apply Instant Death when a character suffers damage equal to or greater than the
 </details>
 
 ### Dead
-- Apply the Dead status effect when an NPC is reduced to zero HP.
+- Apply the Dead or Unconscious status effect when an NPC is reduced to zero HP, with an option to apply Unconscious only to NPCs with the Important trait.
 - Tint and/or rotate the token when it gains the Dead status effect.
 
 <details>
@@ -110,7 +114,7 @@ Apply the Unconscious status effect when a PC is reduced to zero HP.
 ### Hit Points
 
 #### Massive Damage
-Apply Massive Damage as per the variant rule (DMG pg. 273).
+Apply Massive Damage as per the variant rule (DMG pg. 273) to player characters, NPCs, or both, with a configurable damage threshold.
 
 <details>
     <summary>See Video</summary>
@@ -154,6 +158,20 @@ Apply Massive Damage as per the variant rule (DMG pg. 273).
 
 </details>
 
+### Speed Factor Initiative
+Replace the standard initiative method with the Speed Factor Initiative variant (Dungeon Master's Guide (2014), pg. 270). Each round, every combatant chooses one or more actions, then initiative is rolled for everyone with a modifier based on the creature's size and their chosen action(s). Choices are hidden until initiative is rolled, then revealed.
+- **Size:** Configure size modifiers for each creature.
+- **Actions:** Configure the available actions and their initiative modifiers.
+- **Spells:** Display spells available to the active combatant.
+- **Weapons:** Configure modifiers for each weapon and, optionally, display only the weapons available to the active combatant.
+
+<details>
+    <summary>See Video</summary>
+
+![Custom D&D 5e Speed Factor Initiative](./.github/readme/custom-dnd5e-speed-factor-initiative.gif)
+
+</details>
+
 ### Award Inspiration
 Award Inspiration when a set value is rolled for an ability check, attack roll, saving throw and/or skill check.
 
@@ -167,7 +185,8 @@ Award Inspiration when a set value is rolled for an ability check, attack roll, 
 ### Average Damage
 - When rolling damage, the average result is used.
 - Enable per actor type (Player Characters, NPCs or both).
-- When the associated attack roll is a critical hit, the average damage includes the critical damage.
+- Show the damage roll dialog to choose between critical and normal damage and add a situational bonus.
+- Without the dialog, the average damage includes the critical damage when the associated attack roll is a critical hit.
 
 <details>
     <summary>See Video</summary>
@@ -189,8 +208,10 @@ Award Inspiration when a set value is rolled for an ability check, attack roll, 
 
 ### Probabilistic Damage
 - When attacking a single token, the attack roll is replaced with a damage roll scaled by the chance to hit.
+- For saving throws against a single token, the saving throw is replaced with a damage roll scaled by the chance the target fails, plus any damage it takes on a success.
 - Enable per activity and actor type (Player Characters, NPCs or both).
 - Use average damage instead of rolling.
+- Hold the Use Probabilistic Damage key (set in Configure Controls) to use it for a single attack.
 
 <details>
     <summary>See Video</summary>
@@ -246,6 +267,10 @@ The Macro activity executes a macro when the activity is used. Macros can be con
 
 The Move activity enables forced movement of targeted tokens on the map. Valid movement positions are highlighted based on direction (push, pull, or any) and distance constraints. Supports gridded and gridless scenes, respects wall collision, and handles multiple targets in sequence.
 
+### Multiattack Activity
+
+The Multiattack activity makes several attacks in one go and shows all the results in a single chat card. Add a row for each attack the creature can make, then target a token for each attack in turn, choosing from the attacks still left. Optionally use Probabilistic Damage to skip attack rolls and saving throws, and apply damage automatically or with buttons on the chat card.
+
 ### Swap Activity
 
 The Swap activity swaps the caster's token position with a target token. Supports range validation, target type restrictions (ally, enemy, willing), size limits, and an optional designated actor. Can be configured as a teleport (instant) or animated movement.
@@ -264,7 +289,7 @@ Add counters to character sheets with four types: checkbox, fraction, number and
 
 ![Custom D&D 5e Counters](./.github/readme/custom-dnd5e-counters.gif)
 
-Set triggers to automatically change counter values based on HP thresholds, combat events, or item attack rolls. Triggers can execute macros with custom operators. Counter actions include increasing or decreasing values, destroying items, and reducing item quantities. Counters can also be added to items and group actor sheets, and are compatible with Tidy5e character sheets.
+Set triggers to automatically change counter values based on HP thresholds, combat events, or item attack rolls. Triggers can execute macros with custom operators. Counter actions include increasing or decreasing values, destroying items, and reducing item quantities. Counters can also be added to items and group actor sheets, and are compatible with Tidy5e character sheets. Item counters can optionally be displayed on the owning actor's sheet, always or only while the item is equipped.
 
 <details>
     <summary>See Video</summary>
@@ -296,11 +321,11 @@ Triggers define when a workflow fires. Multiple triggers can be added to a singl
 
 **Rest Triggers:** Short Rest, Long Rest.
 
-**Condition Triggers:** Condition Applied, Condition Removed.
+**Condition Triggers:** Condition Applied, Condition Removed, Condition Level Changed.
 
 **Effect Triggers:** Effect Enabled, Effect Disabled.
 
-**Equipment Triggers:** Item Equipped, Item Unequipped.
+**Item Triggers:** Item Equipped, Item Unequipped, Item Used.
 
 **Counter Triggers:** Counter Value Changed, Counter Value Increased, Counter Value Decreased, Counter Checked, Counter Unchecked, Success Value, Failure Value.
 
@@ -320,7 +345,22 @@ Actions define what happens when a workflow is triggered. Multiple actions can b
 
 The **Request Roll** action prompts a roll with a configurable DC and supports **On Success** and **On Failure** sub-actions, allowing different actions to execute based on the roll result.
 
-The **Macro** action receives context including the actor, item, event data, roll results, and counter information (counterKey, counterName, counterValue) when triggered by counter events.
+The **Macro** action passes the following properties to the macro script:
+
+| Property | Description |
+| --- | --- |
+| `actor` | The actor the workflow is running on. |
+| `item` | The item the workflow is running on. |
+| `event` | Name of the event that fired the workflow (e.g. `counterValueIncrease`, `zeroHp`, `attackRolled`). |
+| `userId` | ID of the user who triggered the event. |
+| `data` | The hook data from the underlying Foundry hook. |
+| `dieTotal` | Die total for roll-based events. |
+| `rolls` | Array of `Roll` instances for roll-based events. |
+| `counterKey` | Counter key for counter events. |
+| `counterName` | Label of the counter for counter events. |
+| `counterValue` | New value of the counter for counter events. |
+
+Attack Roll (pre-roll) macros additionally receive `sourceActor`, `sourceToken`, `targetActor`, `targetToken`, `rollConfig`, and `config` for inspecting and modifying the roll before it is made.
 
 ### Item Workflows
 
@@ -329,6 +369,10 @@ Item workflows use a subset of triggers (Attack Roll, Item Equipped, Item Unequi
 ### Per-Actor and Per-Item Workflows
 
 Workflows can also be configured on individual actors via the Configure Workflows button on the Effects tab of the actor sheet, or on individual items. Per-actor and per-item workflows follow the same trigger and action system as world workflows.
+
+### Copy & Paste
+
+Workflows can be copied and pasted making it easy to duplicate or share workflows.
 
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 
@@ -354,6 +398,7 @@ Customise D&D 5e system configurations. For help and advice on modifying a confi
 - **Bastions**: Facilities, sizes, build orders and subtypes.
 - **Calendar**: Custom campaign calendars with months, days and seasons.
 - **Conditions/Status Effects**: Blinded, Charmed, Dead, etc. Includes overlay options.
+- **Condition effects**: Choose which conditions trigger built-in mechanical effects.
 - **Consumable Types**: Ammo, Food, Poison, etc.
 - **Creature Types**: Aberration, Beast, Celestial, etc.
 - **Currencies**: Copper, Silver, Gold, etc. Includes conversion configuration.
@@ -365,10 +410,12 @@ Customise D&D 5e system configurations. For help and advice on modifying a confi
 - **Item Rarity**: Common, Uncommon, Rare, etc.
 - **Languages**: Common, Dwarvish, Elvish, etc.
 - **Loot Types**: Art Object, Adventuring Gear, Gemstone, etc.
+- **Movement Types**: Walk, Climb, Fly, Swim, etc.
 - **Rest Types**: Short Rest, Long Rest, etc.
 - **Senses**: Blindsight, Darkvision, Tremorsense, etc.
 - **Skills**: Athletics, Acrobatics, Stealth, etc.
 - **Spell Schools**: Abjuration, Conjuration, Divination, etc.
+- **Spellcasting**: Spell levels above 9th and spell slot tables for each caster level.
 - **Tools**: Alchemist's Supplies, Bagpipes, Brewer's Supplies, etc.
 - **Tool Proficiencies/Types**: Artisan's Tools, Gaming Set, Musical Instrument, etc.
 - **Weapons**: Dagger, Longsword, Shortbow, etc.
@@ -391,6 +438,16 @@ Customise encumbrance labels, icons, thresholds and weight modifiers. Includes a
 ![Custom D&D 5e Configure Encumbrance](./.github/readme/custom-dnd5e-configure-encumbrance.png)
 
 </details>
+
+<p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
+
+---
+
+## Configure Interface
+
+Group of UI and canvas settings for tokens, canvas overlays, and chat. Includes Token Border Shape, Radial Status Effects, Token HUD Improvements, Token Distance, Apply Elevation to Selected Tokens, Toggle Status Effects on Selected Tokens, Ruler Travel Time, Show Pressed Keys, and Chat Command Shorthands.
+
+For help and advice on interface settings, either click the info buttons in the Configure Interface window or open the Interface journal within the Custom D&D 5e compendium.
 
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 
@@ -435,6 +492,9 @@ Customise the actor sheet with client and world settings for characters and NPCs
 - **Show/Hide Legendary Resistance:** Show or hide Legendary Resistance on the NPC sheet.
 - **Show/Hide Use Lair Action:** Show or hide the Use Lair Action button on the NPC sheet.
 
+### Open / Detach
+Automatically open actor sheets as detached windows or when a token is selected, with options to limit the behaviour to chosen actor types and add toggle buttons to the scene controls.
+
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 
 ---
@@ -442,6 +502,29 @@ Customise the actor sheet with client and world settings for characters and NPCs
 ## Item Sheet
 
 Set the minimum role required to toggle Identified/Unidentified on the item.
+
+<p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
+
+---
+
+## Item Interactions
+
+Configure how players exchange items in play. Give items directly to other characters, or drop them onto the canvas to be picked up.
+
+### Give Items
+
+Give an item to another character by dragging it onto their token or using the item's context menu, with optional range limits and acceptance prompts.
+
+### Drop Items
+
+Drop items onto the canvas as tokens that other players can pick up, with configurable drop and take ranges, droppable item types, and dropped-token appearance.
+
+<details>
+    <summary>See Video</summary>
+
+![Custom D&D 5e Give and Drop Items](./.github/readme/custom-dnd5e-give-drop-items.gif)
+
+</details>
 
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 
@@ -462,16 +545,9 @@ Select 'Custom D&D 5e Character Sheet' from the Sheet Configuration dialog (cog 
 
 ---
 
-## Chat Commands
+## Chat Command Shorthands
 
-Enable additional chat commands to roll an attack, roll damage or request checks and saving throws. For a list of available commands, view the **Chat Commands** journal within the **Custom D&D 5e** compendium.
-
-<details>
-    <summary>See Video</summary>
-
-![Custom D&D 5e Chat Commands](./.github/readme/custom-dnd5e-chat-commands.gif)
-
-</details>
+Enable shorthand aliases for the D&D 5e system's chat commands, such as `/a` for `/attack` and `/s` for `/save`. For the full list of commands and their options, see the [D&D 5e system's Enrichers wiki page](https://github.com/foundryvtt/dnd5e/wiki/Enrichers). The shorthand aliases are listed in the **Interface** journal within the **Custom D&D 5e** compendium.
 
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 
@@ -479,7 +555,7 @@ Enable additional chat commands to roll an attack, roll damage or request checks
 
 ## Show Pressed Keys
 
-Display an icon near the cursor when the Skip Dialog, Advantage or Disadvantage keys are pressed.
+Display an icon near the cursor when the Skip Dialog, Advantage, Disadvantage or Use Probabilistic Damage keys are pressed.
 
 <details>
     <summary>See Video</summary>
@@ -528,12 +604,24 @@ Screen animations can be triggered via the module API or socket events. Availabl
 
 Display status effects in a circle around the token.
 
-<details>
-    <summary>See Image</summary>
+### Click to Toggle
 
-![Custom D&D 5e Radial Status Effects](./.github/readme/custom-dnd5e-radial-status-effects.png)
+When enabled, allows clicking a radial status effect icon to disable it on a left-click or delete on Shift-click. Conditions are always deleted.
+
+<details>
+    <summary>See Video</summary>
+
+![Custom D&D 5e Radial Status Effects](./.github/readme/custom-dnd5e-toggle-radial-status-effects.gif)
 
 </details>
+
+<p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
+
+---
+
+## Condition Levels
+
+Conditions configured with multiple levels show a clickable level badge on the token, letting you raise or lower the level directly from the Token HUD.
 
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 
@@ -554,6 +642,25 @@ Choose the shape of the token's border when it is selected or hovered.
 
 ---
 
+## Token Distance
+
+Display the distance to a token when hovering over it. Hold the configurable keybinding (Alt by default) to show distances to all visible tokens at once.
+
+The source token is the user's currently controlled token, or the first token of their assigned character.
+
+A minimum role can be configured to control which users see distance labels.
+
+<details>
+    <summary>See Video</summary>
+
+![Custom D&D 5e Token Distance](./.github/readme/custom-dnd5e-token-distance.gif)
+
+</details>
+
+<p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
+
+---
+
 ## Token HUD Improvements
 
 Improves the Token HUD with hover-to-open palettes, button styling, and fixed HUD size across zoom levels.
@@ -561,6 +668,7 @@ Improves the Token HUD with hover-to-open palettes, button styling, and fixed HU
 - **Hover-to-open palettes:** Hovering over the Status Effects or Movement Actions buttons opens the palette automatically.
 - **Button styling:** Enhanced visual feedback for status effect icons and control buttons.
 - **Fixed HUD size:** The Token HUD maintains a consistent size on screen regardless of the canvas zoom level.
+- **Customisable size:** Adjust the overall HUD scale and the number of status-effect rows and columns.
 
 <p align="right">(<a href="#custom-dd-5e">back to top</a>)</p>
 

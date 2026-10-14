@@ -6,13 +6,21 @@ export const MODULE = {
 export const CONSTANTS = {
   CONFIG: {
     TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      EDIT_IN_LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
+      FORM: "modules/custom-dnd5e/templates/forms/list-form.hbs",
+      SECTIONS: "modules/custom-dnd5e/templates/forms/sections-form.hbs",
+      EDIT: "modules/custom-dnd5e/templates/forms/edit.hbs",
+      EDIT_IN_LIST: "modules/custom-dnd5e/templates/forms/list-edit.hbs",
+      LIST: "modules/custom-dnd5e/templates/forms/list.hbs",
+      TABLE: "modules/custom-dnd5e/templates/forms/table.hbs",
+      TABLE_ROWS: "modules/custom-dnd5e/templates/forms/table-rows.hbs",
+      FIELD: "modules/custom-dnd5e/templates/fields/field.hbs",
+      FIELD_CHECKBOX_GRID: "modules/custom-dnd5e/templates/fields/checkbox-grid.hbs",
+      FIELD_MACRO_DROP: "modules/custom-dnd5e/templates/fields/macro-drop.hbs"
     }
   },
   ACTIVITIES: {
     ID: "activities",
+    MULTIATTACK_MESSAGE_TYPE: "custom-dnd5e.multiattack",
     MENU: {
       KEY: "activities-menu",
       HINT: "CUSTOM_DND5E.menu.activities.hint",
@@ -29,6 +37,8 @@ export const CONSTANTS = {
       FORM: "modules/custom-dnd5e/templates/activities-form.hbs",
       MACRO_EFFECT: "modules/custom-dnd5e/templates/activity/macro-effect.hbs",
       MOVE_EFFECT: "modules/custom-dnd5e/templates/activity/move-effect.hbs",
+      MULTIATTACK_CARD: "modules/custom-dnd5e/templates/activity/multiattack-card.hbs",
+      MULTIATTACK_EFFECT: "modules/custom-dnd5e/templates/activity/multiattack-effect.hbs",
       SWAP_ACTIVATION: "modules/custom-dnd5e/templates/activity/swap-activation.hbs",
       SWAP_TARGETING: "modules/custom-dnd5e/templates/activity/swap-targeting.hbs",
       SWAP_EFFECT: "modules/custom-dnd5e/templates/activity/swap-effect.hbs"
@@ -37,55 +47,10 @@ export const CONSTANTS = {
     PAGE_UUID: {
       MACRO: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.xK7mNpV3tZwQ4rY2.JournalEntryPage.bS3oZvYxU5aEqL0d",
       MOVE: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.xK7mNpV3tZwQ4rY2.JournalEntryPage.cT4pAvZyV6bFrM1e",
+      MULTIATTACK: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.xK7mNpV3tZwQ4rY2.JournalEntryPage.fW7sDyCbY9eIuP4h",
       SWAP: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.xK7mNpV3tZwQ4rY2.JournalEntryPage.dU5qBwAzW7cGsN2f",
       TARGETING: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.xK7mNpV3tZwQ4rY2.JournalEntryPage.eV6rCxBaX8dHtO3g"
     }
-  },
-  ABILITIES: {
-    ID: "abilities",
-    MENU: {
-      KEY: "abilities-menu",
-      HINT: "CUSTOM_DND5E.menu.abilities.hint",
-      ICON: "fas fa-head-side-brain",
-      LABEL: "CUSTOM_DND5E.menu.abilities.label",
-      NAME: "CUSTOM_DND5E.menu.abilities.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-abilities"
-      },
-      CONFIG: {
-        KEY: "abilities"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/abilities-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.tVG6b7kBJUOVvpwP"
-  },
-  ACTIVATION_COSTS: {
-    ID: "activation-costs",
-    MENU: {
-      KEY: "activation-costs-menu",
-      HINT: "CUSTOM_DND5E.menu.activityActivationTypes.hint",
-      ICON: "fas fa-clock",
-      LABEL: "CUSTOM_DND5E.menu.activityActivationTypes.label",
-      NAME: "CUSTOM_DND5E.menu.activityActivationTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-activation-costs"
-      },
-      CONFIG: {
-        KEY: "activation-costs"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/activation-costs-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.LehHpGOmEbRQ4day"
   },
   ACTOR_SHEET: {
     ID: "actor-sheet",
@@ -97,17 +62,23 @@ export const CONSTANTS = {
       NAME: "CUSTOM_DND5E.menu.actorSheet.name"
     },
     SETTING: {
+      AUTO_DETACH_GEOMETRY: { KEY: "auto-detach-geometry" },
+      AUTO_DETACH_ACTOR_SHEET: { KEY: "auto-detach-actor-sheet" },
       AUTO_FADE_SHEET: { KEY: "auto-fade-sheet" },
       AUTO_MINIMISE_SHEET: { KEY: "auto-minimise-sheet" },
       BANNER_IMAGE: { KEY: "banner-image" },
+      OPEN_DETACH_ACTOR_TYPES: { KEY: "open-detach-actor-types", DEFAULT: ["character", "npc"] },
+      OPEN_DETACH_SHOW_CONTROLS: { KEY: "open-detach-show-controls" },
+      OPEN_ACTOR_SHEET_ON_SELECT: { KEY: "open-actor-sheet-on-select" },
+      OPEN_SINGLE_ACTOR_SHEET: { KEY: "open-single-actor-sheet" },
       SHEET_SCALE: { KEY: "sheet-scale" },
       SHOW_DEATH_SAVES: { KEY: "show-death-saves" },
       SHOW_ENCUMBRANCE: { KEY: "show-encumbrance" },
       SHOW_EXHAUSTION: { KEY: "show-exhaustion" },
       SHOW_INSPIRATION: { KEY: "show-inspiration" },
+      SHOW_JUMP_DISTANCE: { KEY: "show-jump-distance" },
       SHOW_LEGENDARY_ACTIONS: { KEY: "show-legendary-actions" },
       SHOW_LEGENDARY_RESISTANCE: { KEY: "show-legendary-resistance" },
-      SHOW_JUMP_DISTANCE: { KEY: "show-jump-distance" },
       SHOW_MANAGE_CURRENCY: { KEY: "show-manage-currency" },
       SHOW_TOKEN_DISPOSITION: { KEY: "show-token-disposition" },
       SHOW_USE_LAIR_ACTION: { KEY: "show-use-lair-action" }
@@ -121,193 +92,15 @@ export const CONSTANTS = {
     },
     UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.JEUbYgjIv28ICsFg"
   },
-  ACTOR_SIZES: {
-    ID: "actor-sizes",
-    MENU: {
-      KEY: "actor-sizes-menu",
-      HINT: "CUSTOM_DND5E.menu.actorSizes.hint",
-      ICON: "fas fa-arrow-up-big-small",
-      LABEL: "CUSTOM_DND5E.menu.actorSizes.label",
-      NAME: "CUSTOM_DND5E.menu.actorSizes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-actor-sizes"
-      },
-      CONFIG: {
-        KEY: "actor-sizes"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/actor-sizes-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.V3QbxNviHsZd8Ssb"
-  },
-  ARMOR_CALCULATIONS: {
-    ID: "armor-calculations",
-    MENU: {
-      KEY: "armor-calculations-menu",
-      HINT: "CUSTOM_DND5E.menu.armorClasses.hint",
-      ICON: "fas fa-abacus",
-      LABEL: "CUSTOM_DND5E.menu.armorClasses.label",
-      NAME: "CUSTOM_DND5E.menu.armorClasses.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-armor-calculations"
-      },
-      CONFIG: {
-        KEY: "armor-calculations"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/armor-calculations-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.bjFllCYYW9paPCNG"
-  },
-  ARMOR_IDS: {
-    MENU: {
-      KEY: "armor-ids-menu",
-      HINT: "CUSTOM_DND5E.menu.armorIds.hint",
-      ICON: "fas fa-shield-halved",
-      LABEL: "CUSTOM_DND5E.menu.armorIds.label",
-      NAME: "CUSTOM_DND5E.menu.armorIds.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-armor-ids"
-      },
-      CONFIG: {
-        KEY: "armor-ids"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.ehZqnZslXx3cknv9"
-  },
-  ARMOR_PROFICIENCIES: {
-    MENU: {
-      KEY: "armor-proficiencies-menu",
-      HINT: "CUSTOM_DND5E.menu.armorProficiencies.hint",
-      ICON: "fas fa-user-shield",
-      LABEL: "CUSTOM_DND5E.menu.armorProficiencies.label",
-      NAME: "CUSTOM_DND5E.menu.armorProficiencies.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-armor-proficiencies"
-      },
-      CONFIG: {
-        KEY: "armor-proficiencies"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.mTVSShsLO960Kmrk"
-  },
   AVERAGE_DAMAGE: {
     SETTING: {
       USE: {
         KEY: "use-average-damage"
+      },
+      SHOW_DIALOG: {
+        KEY: "average-damage-show-dialog"
       }
     }
-  },
-  BASTIONS: {
-    ID: "bastions",
-    MENU: {
-      KEY: "bastions-menu",
-      HINT: "CUSTOM_DND5E.menu.bastions.hint",
-      ICON: "fas fa-chess-rook",
-      LABEL: "CUSTOM_DND5E.menu.bastions.label",
-      NAME: "CUSTOM_DND5E.menu.bastions.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-bastions"
-      },
-      CONFIG: {
-        KEY: "bastions"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/bastions/bastions-form.hbs",
-      SIZES_LIST: "modules/custom-dnd5e/templates/bastions/bastions-sizes-list.hbs",
-      SIZES_EDIT: "modules/custom-dnd5e/templates/bastions/bastions-sizes-edit.hbs",
-      TYPES_LIST: "modules/custom-dnd5e/templates/bastions/bastions-types-list.hbs",
-      ORDERS_LIST: "modules/custom-dnd5e/templates/bastions/bastions-orders-list.hbs",
-      ORDERS_EDIT: "modules/custom-dnd5e/templates/bastions/bastions-orders-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.qR7xKmNpL2vYbW4c"
-  },
-  BLOODIED: {
-    MENU: {
-      KEY: "bloodied-menu",
-      HINT: "CUSTOM_DND5E.menu.bloodied.hint",
-      ICON: "fas fa-droplet",
-      LABEL: "CUSTOM_DND5E.menu.bloodied.label",
-      NAME: "CUSTOM_DND5E.menu.bloodied.name"
-    },
-    SETTING: {
-      APPLY_BLOODIED: {
-        KEY: "apply-bloodied"
-      },
-      BLOODIED_ICON: {
-        KEY: "bloodied-icon"
-      },
-      BLOODIED_STATUS: {
-        KEY: "bloodied-status"
-      },
-      BLOODIED_TINT: {
-        KEY: "bloodied-tint"
-      },
-      CONFIG: {
-        KEY: "bloodied"
-      },
-      ENABLE: {
-        KEY: "enable-bloodied"
-      },
-      REMOVE_BLOODIED_ON_DEAD: {
-        KEY: "remove-bloodied-on-dead"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/bloodied-form.hbs"
-    },
-    ICON: "modules/custom-dnd5e/media/icons/bloodied.svg",
-    CONDITION_UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.ngr8w6WBycK59brj.JournalEntryPage.sV0ZCKxwh4n4ZU1P",
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.GjOBdXwapcYvUihc"
-  },
-  CALENDAR: {
-    ID: "calendar",
-    MENU: {
-      KEY: "calendar-menu",
-      HINT: "CUSTOM_DND5E.menu.calendars.hint",
-      ICON: "fas fa-calendar-days",
-      LABEL: "CUSTOM_DND5E.menu.calendars.label",
-      NAME: "CUSTOM_DND5E.menu.calendars.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-calendar"
-      },
-      CONFIG: {
-        KEY: "calendar"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/calendar/calendar-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/calendar/calendar-list.hbs",
-      EDIT: "modules/custom-dnd5e/templates/calendar/calendar-edit-form.hbs",
-      MONTHS_LIST: "modules/custom-dnd5e/templates/calendar/calendar-months-list.hbs",
-      DAYS_LIST: "modules/custom-dnd5e/templates/calendar/calendar-days-list.hbs",
-      SEASONS_LIST: "modules/custom-dnd5e/templates/calendar/calendar-seasons-list.hbs",
-      FESTIVALS_LIST: "modules/custom-dnd5e/templates/calendar/calendar-festivals-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.cR8kYmNpV3tZbW5d"
   },
   CHAT_COMMANDS: {
     SETTING: {
@@ -315,48 +108,6 @@ export const CONSTANTS = {
       NAME: "CUSTOM_DND5E.setting.chatCommands.name",
       HINT: "CUSTOM_DND5E.setting.chatCommands.hint"
     }
-  },
-  CONDITIONS: {
-    MENU: {
-      KEY: "conditions-menu",
-      HINT: "CUSTOM_DND5E.menu.conditions.hint",
-      ICON: "fas fa-skull",
-      LABEL: "CUSTOM_DND5E.menu.conditions.label",
-      NAME: "CUSTOM_DND5E.menu.conditions.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-conditions"
-      },
-      CONFIG: {
-        KEY: "conditions"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/conditions-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.DOx3PrYi19dFzcA1"
-  },
-  CONSUMABLE_TYPES: {
-    ID: "consumable-types",
-    MENU: {
-      KEY: "consumable-types-menu",
-      HINT: "CUSTOM_DND5E.menu.consumableTypes.hint",
-      ICON: "fas fa-flask-round-potion",
-      LABEL: "CUSTOM_DND5E.menu.consumableTypes.label",
-      NAME: "CUSTOM_DND5E.menu.consumableTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-consumable-types"
-      },
-      CONFIG: {
-        KEY: "consumable-types"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.OgMhctYM5NFh8neL"
   },
   COUNTERS: {
     ID: "counters",
@@ -389,86 +140,19 @@ export const CONSTANTS = {
       lair: "@resources.lair.value"
     },
     TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/counters/counters-form.hbs",
-      FORM_ENTITY: "modules/custom-dnd5e/templates/counters/counters-form-entity.hbs",
-      LIST: "modules/custom-dnd5e/templates/counters/counters-list.hbs",
       EDIT: "modules/custom-dnd5e/templates/counters/counters-edit.hbs",
       WORKFLOWS_LIST: "modules/custom-dnd5e/templates/counters/counters-workflows-list.hbs",
       DND5E_ACTOR: "modules/custom-dnd5e/templates/counters/dnd5e/counters-actor.hbs",
       DND5E_ITEM_GROUP: "modules/custom-dnd5e/templates/counters/dnd5e/counters-item-group.hbs",
       DND5E_ITEM_GROUP_LEGACY: "modules/custom-dnd5e/templates/counters/dnd5e/counters-item-group-legacy.hbs"
     },
+    TYPES: {
+      NUMERIC: ["fraction", "number", "pips"],
+      WITH_MAX: ["fraction", "number", "pips", "successFailure"],
+      WITH_MIN: ["fraction", "number"],
+      WITH_START: ["fraction", "number", "pips"]
+    },
     UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.dR7kYmNpV3tZxW4q"
-  },
-  CREATURE_TYPES: {
-    ID: "creature-types",
-    MENU: {
-      KEY: "creature-types-menu",
-      HINT: "CUSTOM_DND5E.menu.creatureTypes.hint",
-      ICON: "fas fa-paw-claws",
-      LABEL: "CUSTOM_DND5E.menu.creatureTypes.label",
-      NAME: "CUSTOM_DND5E.menu.creatureTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-creature-types"
-      },
-      CONFIG: {
-        KEY: "creature-types"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/creature-types-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.sRMUy8oNAZNCQOG0"
-  },
-  CURRENCY: {
-    ID: "currency",
-    MENU: {
-      KEY: "currency-menu",
-      HINT: "CUSTOM_DND5E.menu.currencies.hint",
-      ICON: "fas fa-coin",
-      LABEL: "CUSTOM_DND5E.menu.currencies.label",
-      NAME: "CUSTOM_DND5E.menu.currencies.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-currency"
-      },
-      CONFIG: {
-        KEY: "currency"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/currency-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.dmzCGf2LPoBlfu9m"
-  },
-  DAMAGE_TYPES: {
-    ID: "damage-types",
-    MENU: {
-      KEY: "damage-types-menu",
-      HINT: "CUSTOM_DND5E.menu.damageTypes.hint",
-      ICON: "fas fa-face-head-bandage",
-      LABEL: "CUSTOM_DND5E.menu.damageTypes.label",
-      NAME: "CUSTOM_DND5E.menu.damageTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-damage-types"
-      },
-      CONFIG: {
-        KEY: "damage-types"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/damage-types-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.qkB3382uO7YUUApw"
   },
   DEAD: {
     SETTING: {
@@ -477,6 +161,9 @@ export const CONSTANTS = {
       },
       APPLY_INSTANT_DEATH: {
         KEY: "apply-instant-death"
+      },
+      NEGATIVE_HP_DEATH_THRESHOLD: {
+        KEY: "negative-hp-death-threshold"
       },
       DEAD_ROTATION: {
         KEY: "dead-rotation"
@@ -518,85 +205,6 @@ export const CONSTANTS = {
       IMPORT_DIALOG: "modules/custom-dnd5e/templates/import-dialog.hbs"
     }
   },
-  ENCUMBRANCE: {
-    EQUIPPED_ITEM_WEIGHT_MODIFIER: {
-      SETTING: {
-        KEY: "equipped-item-weight-modifier"
-      }
-    },
-    PROFICIENT_EQUIPPED_ITEM_WEIGHT_MODIFIER: {
-      SETTING: { KEY: "proficient-equipped-item-weight-modifier"}
-    },
-    UNEQUIPPED_ITEM_WEIGHT_MODIFIER: {
-      SETTING: {
-        KEY: "unequipped-item-weight-modifier"
-      }
-    },
-    SPEED_REDUCTION_MODE: {
-      SETTING: {
-        KEY: "speed-reduction-mode"
-      }
-    },
-    SPEED_REDUCTION_MULTIPLIER_ENCUMBERED: {
-      SETTING: {
-        KEY: "speed-reduction-multiplier-encumbered"
-      }
-    },
-    SPEED_REDUCTION_MULTIPLIER_HEAVILY_ENCUMBERED: {
-      SETTING: {
-        KEY: "speed-reduction-multiplier-heavily-encumbered"
-      }
-    },
-    SPEED_REDUCTION_MULTIPLIER_EXCEEDING_CARRYING_CAPACITY: {
-      SETTING: {
-        KEY: "speed-reduction-multiplier-exceeding-carrying-capacity"
-      }
-    },
-    SPEED_REDUCTION_MULTIPLIER_ROUNDING: {
-      SETTING: {
-        KEY: "speed-reduction-multiplier-rounding"
-      }
-    },
-    ID: "encumbrance",
-    MENU: {
-      KEY: "encumbrance-menu",
-      HINT: "CUSTOM_DND5E.menu.encumbrance.hint",
-      ICON: "fas fa-weight-hanging",
-      LABEL: "CUSTOM_DND5E.menu.encumbrance.label",
-      NAME: "CUSTOM_DND5E.menu.encumbrance.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-encumbrance"
-      },
-      CONFIG: {
-        KEY: "encumbrance"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/encumbrance-form.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.QK8bAMxx9x9IaTHl"
-  },
-  MISC_EQUIPMENT_TYPES: {
-    ID: "miscEquipmentTypes",
-    MENU: {
-      KEY: "misc-equipment-types-menu",
-      HINT: "CUSTOM_DND5E.menu.miscEquipmentTypes.hint",
-      ICON: "fas fa-ring-diamond",
-      LABEL: "CUSTOM_DND5E.menu.miscEquipmentTypes.label",
-      NAME: "CUSTOM_DND5E.menu.miscEquipmentTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-misc-equipment-types"
-      },
-      CONFIG: {
-        KEY: "misc-equipment-types"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.koB9uAZtQ9f2n1f8"
-  },
   EXHAUSTION: {
     SETTING: {
       APPLY_EXHAUSTION_ON_ZERO_HP: {
@@ -619,25 +227,6 @@ export const CONSTANTS = {
       }
     }
   },
-  FEATURE_TYPES: {
-    ID: "feature-types",
-    MENU: {
-      KEY: "feature-types-menu",
-      HINT: "CUSTOM_DND5E.menu.featureTypes.hint",
-      ICON: "fas fa-list",
-      LABEL: "CUSTOM_DND5E.menu.featureTypes.label",
-      NAME: "CUSTOM_DND5E.menu.featureTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-feature-types"
-      },
-      CONFIG: {
-        KEY: "feature-types"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.dgX7G9bkLoEif6pk"
-  },
   HIT_POINTS: {
     SETTING: {
       APPLY_MASSIVE_DAMAGE: {
@@ -646,8 +235,14 @@ export const CONSTANTS = {
       MASSIVE_DAMAGE_ANIMATION: {
         KEY: "massive-damage-animation"
       },
+      MASSIVE_DAMAGE_DC: {
+        KEY: "massive-damage-dc"
+      },
       MASSIVE_DAMAGE_TABLE: {
         KEY: "massive-damage-table"
+      },
+      MASSIVE_DAMAGE_THRESHOLD: {
+        KEY: "massive-damage-threshold"
       },
       APPLY_NEGATIVE_HP: {
         KEY: "apply-negative-hp"
@@ -659,6 +254,94 @@ export const CONSTANTS = {
         KEY: "negative-hp-heal-from-zero"
       }
     }
+  },
+  GIVE_ITEMS: {
+    SETTING: {
+      ENABLE: {
+        KEY: "enable-give-items",
+        HINT: "CUSTOM_DND5E.setting.giveItems.enable.hint",
+        NAME: "CUSTOM_DND5E.setting.giveItems.enable.name"
+      },
+      RANGE: {
+        KEY: "give-items-range",
+        HINT: "CUSTOM_DND5E.setting.giveItems.range.hint",
+        NAME: "CUSTOM_DND5E.setting.giveItems.range.name"
+      },
+      REQUIRE_ACCEPTANCE: {
+        KEY: "give-items-require-acceptance",
+        HINT: "CUSTOM_DND5E.setting.giveItems.requireAcceptance.hint",
+        NAME: "CUSTOM_DND5E.setting.giveItems.requireAcceptance.name"
+      }
+    },
+    TEMPLATE: {
+      FORM: "modules/custom-dnd5e/templates/item-interactions/give-item-form.hbs"
+    }
+  },
+  DROP_ITEMS: {
+    SETTING: {
+      ENABLE: {
+        KEY: "enable-drop-items",
+        HINT: "CUSTOM_DND5E.setting.dropItems.enable.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.enable.name"
+      },
+      RANGE: {
+        KEY: "drop-items-take-range",
+        HINT: "CUSTOM_DND5E.setting.dropItems.takeRange.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.takeRange.name"
+      },
+      DROPPABLE_TYPES: {
+        CHOICES: ["weapon", "equipment", "consumable", "tool", "loot", "container"],
+        KEY: "drop-items-droppable-types",
+        HINT: "CUSTOM_DND5E.setting.dropItems.droppableTypes.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.droppableTypes.name"
+      },
+      ALLOW_PLAYER_DROPS: {
+        KEY: "drop-items-allow-player-drops",
+        HINT: "CUSTOM_DND5E.setting.dropItems.allowPlayerDrops.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.allowPlayerDrops.name"
+      },
+      CHAT_NOTIFICATIONS: {
+        KEY: "drop-items-chat-notifications",
+        HINT: "CUSTOM_DND5E.setting.dropItems.chatNotifications.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.chatNotifications.name"
+      },
+      DROP_RANGE: {
+        KEY: "drop-items-drop-range",
+        HINT: "CUSTOM_DND5E.setting.dropItems.dropRange.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.dropRange.name"
+      },
+      TOKEN_SCALE: {
+        KEY: "drop-items-token-scale",
+        HINT: "CUSTOM_DND5E.setting.dropItems.tokenScale.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.tokenScale.name"
+      },
+      IMAGE_SHAPE: {
+        CHOICES: { none: "CUSTOM_DND5E.none", square: "CUSTOM_DND5E.square", circle: "CUSTOM_DND5E.circle" },
+        KEY: "drop-items-image-shape",
+        HINT: "CUSTOM_DND5E.setting.dropItems.imageShape.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.imageShape.name"
+      },
+      IMAGE_BORDER_COLOR: {
+        KEY: "drop-items-image-border-color",
+        HINT: "CUSTOM_DND5E.setting.dropItems.imageBorderColor.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.imageBorderColor.name"
+      },
+      IMAGE_BORDER_THICKNESS: {
+        KEY: "drop-items-image-border-thickness",
+        HINT: "CUSTOM_DND5E.setting.dropItems.imageBorderThickness.hint",
+        NAME: "CUSTOM_DND5E.setting.dropItems.imageBorderThickness.name"
+      },
+      FOLDER_ID: {
+        KEY: "drop-items-folder-id"
+      }
+    },
+    TEMPLATE: {
+      SHEET: "modules/custom-dnd5e/templates/item-interactions/item-actor-sheet.hbs",
+      HUD: "modules/custom-dnd5e/templates/item-interactions/item-token-hud.hbs"
+    },
+    FOLDER_NAME: "CUSTOM_DND5E.dropItems.folderName",
+    ACTOR_TYPE: "custom-dnd5e.item",
+    DEFAULT_ICON: "modules/custom-dnd5e/media/icons/chest.svg"
   },
   GAMEPLAY: {
     MENU: {
@@ -680,6 +363,76 @@ export const CONSTANTS = {
       }
     }
   },
+  SPEED_FACTOR_INITIATIVE: {
+    ID: "speedFactorInitiative",
+    MENU: {
+      KEY: "speed-factor-initiative-menu",
+      HINT: "CUSTOM_DND5E.menu.speedFactorInitiative.hint",
+      ICON: "fas fa-gauge-high",
+      LABEL: "CUSTOM_DND5E.menu.speedFactorInitiative.label",
+      NAME: "CUSTOM_DND5E.menu.speedFactorInitiative.name"
+    },
+    SETTING: {
+      ENABLE: {
+        KEY: "enable-speed-factor-initiative"
+      },
+      SIZE_MODIFIERS: {
+        KEY: "speed-factor-initiative-size-modifiers"
+      },
+      ACTIONS: {
+        KEY: "speed-factor-initiative-actions"
+      },
+      WEAPONS: {
+        KEY: "speed-factor-initiative-weapons"
+      },
+      REVEAL_CHOICES: {
+        KEY: "speed-factor-initiative-reveal-choices"
+      },
+      GATHER_TIMEOUT: {
+        KEY: "speed-factor-initiative-gather-timeout"
+      },
+      TIMEOUT_ACTION: {
+        KEY: "speed-factor-initiative-timeout-action"
+      }
+    },
+    TEMPLATE: {
+      FORM: "modules/custom-dnd5e/templates/speed-factor-initiative-form.hbs",
+      ACTIONS_FORM: "modules/custom-dnd5e/templates/speed-factor-actions-form.hbs",
+      WEAPONS_FORM: "modules/custom-dnd5e/templates/speed-factor-weapons-form.hbs",
+      ACTION_BAR: "modules/custom-dnd5e/templates/speed-factor-action-bar.hbs"
+    },
+    FLAG: {
+      SPEED_FACTOR: "speedFactor",
+      REVEALED: "speedFactorRevealed"
+    },
+    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.ngr8w6WBycK59brj.JournalEntryPage.sFiW8mKzQ2rXnVb3"
+  },
+  INTERFACE: {
+    MENU: {
+      KEY: "interface-menu",
+      HINT: "CUSTOM_DND5E.menu.interface.hint",
+      ICON: "fas fa-display",
+      LABEL: "CUSTOM_DND5E.menu.interface.label",
+      NAME: "CUSTOM_DND5E.menu.interface.name"
+    },
+    TEMPLATE: {
+      FORM: "modules/custom-dnd5e/templates/interface-form.hbs"
+    },
+    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.iFcVxKpMyZrNqW8t"
+  },
+  ITEM_INTERACTIONS: {
+    MENU: {
+      KEY: "item-interactions-menu",
+      HINT: "CUSTOM_DND5E.menu.itemInteractions.hint",
+      ICON: "fas fa-handshake",
+      LABEL: "CUSTOM_DND5E.menu.itemInteractions.label",
+      NAME: "CUSTOM_DND5E.menu.itemInteractions.name"
+    },
+    TEMPLATE: {
+      FORM: "modules/custom-dnd5e/templates/item-interactions/item-interactions-form.hbs"
+    },
+    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.iIqL5xV2bRsNyW8m"
+  },
   INSPIRATION: {
     SETTING: {
       AWARD_INSPIRATION_DICE_VALUE: {
@@ -692,85 +445,6 @@ export const CONSTANTS = {
         KEY: "inspiration-animation"
       }
     }
-  },
-  ITEM_ACTION_TYPES: {
-    ID: "item-action-types",
-    MENU: {
-      KEY: "item-action-types-menu",
-      HINT: "CUSTOM_DND5E.menu.itemActionTypes.hint",
-      ICON: "fas fa-pen-to-square",
-      LABEL: "CUSTOM_DND5E.menu.itemActionTypes.label",
-      NAME: "CUSTOM_DND5E.menu.itemActionTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-item-actions-types"
-      },
-      CONFIG: {
-        KEY: "item-action-types"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.Ubzow5wKgOUEXYJw"
-  },
-  ITEM_ACTIVATION_COST_TYPES: {
-    ID: "item-activation-cost-types",
-    MENU: {
-      KEY: "item-activation-cost-types-menu",
-      HINT: "CUSTOM_DND5E.menu.itemActivationCostTypes.hint",
-      ICON: "fas fa-pen-to-square",
-      LABEL: "CUSTOM_DND5E.menu.itemActivationCostTypes.label",
-      NAME: "CUSTOM_DND5E.menu.itemActivationCostTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-item-activation-cost-types"
-      },
-      CONFIG: {
-        KEY: "item-activation-cost-types"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.uFxtCCVz8Ow95cUL"
-  },
-  ITEM_PROPERTIES: {
-    ID: "item-properties",
-    MENU: {
-      KEY: "item-properties-menu",
-      HINT: "CUSTOM_DND5E.menu.itemProperties.hint",
-      ICON: "fas fa-sparkles",
-      LABEL: "CUSTOM_DND5E.menu.itemProperties.label",
-      NAME: "CUSTOM_DND5E.menu.itemProperties.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-item-properties"
-      },
-      CONFIG: {
-        KEY: "item-properties"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/item-properties-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.dM6sUm93mUi9oeBo"
-  },
-  ITEM_RARITY: {
-    ID: "itemRarity",
-    MENU: {
-      KEY: "item-rarity-menu",
-      HINT: "CUSTOM_DND5E.menu.itemRarity.hint",
-      ICON: "fas fa-gem",
-      LABEL: "CUSTOM_DND5E.menu.itemRarity.label",
-      NAME: "CUSTOM_DND5E.menu.itemRarity.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-item-rarity"
-      },
-      CONFIG: {
-        KEY: "item-rarity"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.FIMLwqJ6ACWHbuDJ"
   },
   ITEM_SHEET: {
     ID: "item-sheet",
@@ -787,25 +461,6 @@ export const CONSTANTS = {
     TEMPLATE: {
       FORM: "modules/custom-dnd5e/templates/item-sheet-form.hbs"
     }
-  },
-  LANGUAGES: {
-    ID: "languages",
-    MENU: {
-      KEY: "languages-menu",
-      HINT: "CUSTOM_DND5E.menu.languages.hint",
-      ICON: "fas fa-comment",
-      LABEL: "CUSTOM_DND5E.menu.languages.label",
-      NAME: "CUSTOM_DND5E.menu.languages.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-languages"
-      },
-      CONFIG: {
-        KEY: "languages"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.UHurkLgqKecvpq2S"
   },
   LEVEL_UP: {
     HIT_POINTS: {
@@ -831,25 +486,6 @@ export const CONSTANTS = {
       }
     }
   },
-  LOOT_TYPES: {
-    ID: "lootTypes",
-    MENU: {
-      KEY: "loot-types-menu",
-      HINT: "CUSTOM_DND5E.menu.lootTypes.hint",
-      ICON: "fas fa-treasure-chest",
-      LABEL: "CUSTOM_DND5E.menu.lootTypes.label",
-      NAME: "CUSTOM_DND5E.menu.lootTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-loot-types"
-      },
-      CONFIG: {
-        KEY: "loot-types"
-      }
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.Jly3oGH0ntybdpBu"
-  },
   MAX_ABILITY_SCORE: {
     SETTING: {
       KEY: "max-ability-score",
@@ -863,11 +499,6 @@ export const CONSTANTS = {
       NAME: "CUSTOM_DND5E.setting.maxLevel.name"
     },
     UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.4h10hYx01hjbUQL6"
-  },
-  MESSAGE: {
-    TEMPLATE: {
-      ROLL_REQUEST_CARD: "modules/custom-dnd5e/templates/roll-request-card.hbs"
-    }
   },
   MIGRATION: {
     VERSION: {
@@ -887,6 +518,9 @@ export const CONSTANTS = {
     }
   },
   PROBABILISTIC_DAMAGE: {
+    KEYBINDING: {
+      USE: "useProbabilisticDamage"
+    },
     SETTING: {
       ENABLE: {
         KEY: "enable-probabilistic-damage"
@@ -899,6 +533,34 @@ export const CONSTANTS = {
       PROBABILISTIC_DAMAGE: "modules/custom-dnd5e/templates/probabilistic-damage.hbs"
     }
   },
+  PROFICIENCY_BONUS: {
+    ID: "proficiency-bonus",
+    MENU: {
+      KEY: "proficiency-bonus-menu",
+      HINT: "CUSTOM_DND5E.menu.proficiencyBonus.hint",
+      ICON: "fas fa-award",
+      LABEL: "CUSTOM_DND5E.menu.proficiencyBonus.label",
+      NAME: "CUSTOM_DND5E.menu.proficiencyBonus.name"
+    },
+    SETTING: {
+      CHARACTER_ENABLE: {
+        KEY: "enable-proficiency-bonus-character"
+      },
+      CHARACTER_PROFICIENCY_BONUS: {
+        KEY: "proficiency-bonus-character"
+      },
+      NPC_ENABLE: {
+        KEY: "enable-proficiency-bonus-npc"
+      },
+      NPC_PROFICIENCY_BONUS: {
+        KEY: "proficiency-bonus-npc"
+      }
+    },
+    TEMPLATE: {
+      FORM: "modules/custom-dnd5e/templates/proficiency-bonus-form.hbs"
+    },
+    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.pR5kYmNpV3tZbW7f"
+  },
   PRONE: {
     SETTING: {
       PRONE_ROTATION: {
@@ -908,30 +570,13 @@ export const CONSTANTS = {
   },
   RADIAL_STATUS_EFFECTS: {
     SETTING: {
-      KEY: "radial-status-effects"
-    }
-  },
-  REST_TYPES: {
-    ID: "rest-types",
-    MENU: {
-      KEY: "rest-types-menu",
-      HINT: "CUSTOM_DND5E.menu.restTypes.hint",
-      ICON: "fas fa-bed",
-      LABEL: "CUSTOM_DND5E.menu.restTypes.label",
-      NAME: "CUSTOM_DND5E.menu.restTypes.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-rest-types"
-      },
-      CONFIG: {
-        KEY: "rest-types"
+      KEY: "radial-status-effects",
+      CLICK_TO_TOGGLE: {
+        KEY: "radial-status-effects-click-to-toggle",
+        HINT: "CUSTOM_DND5E.setting.radialStatusEffectsClickToToggle.hint",
+        NAME: "CUSTOM_DND5E.setting.radialStatusEffectsClickToToggle.name"
       }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/rest-types-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.rT4kYmNpV3tZbW9x"
+    }
   },
   RESTING: {
     SETTING: {
@@ -970,28 +615,6 @@ export const CONSTANTS = {
       HINT: "CUSTOM_DND5E.setting.rulerTravelTime.hint"
     }
   },
-  SENSES: {
-    ID: "senses",
-    MENU: {
-      KEY: "senses-menu",
-      HINT: "CUSTOM_DND5E.menu.senses.hint",
-      ICON: "fas fa-eye",
-      LABEL: "CUSTOM_DND5E.menu.senses.label",
-      NAME: "CUSTOM_DND5E.menu.senses.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-senses"
-      },
-      CONFIG: {
-        KEY: "senses"
-      }
-    },
-    TEMPLATE: {
-      CONFIG_FORM_GROUP: "modules/custom-dnd5e/templates/movement-senses-config-form-group.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.UC0cWoAGMtU6yISR"
-  },
   SHEET: {
     ID: "sheet",
     MENU: {
@@ -1028,52 +651,6 @@ export const CONSTANTS = {
       HINT: "CUSTOM_DND5E.setting.showPressedKeys.hint"
     }
   },
-  SKILLS: {
-    ID: "skills",
-    MENU: {
-      KEY: "skills-menu",
-      HINT: "CUSTOM_DND5E.menu.skills.hint",
-      ICON: "fas fa-person-running-fast",
-      LABEL: "CUSTOM_DND5E.menu.skills.label",
-      NAME: "CUSTOM_DND5E.menu.skills.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-skills"
-      },
-      CONFIG: {
-        KEY: "skills"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/skills-edit.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.0SCQdu9sYAjcDqAk"
-  },
-  SPELL_SCHOOLS: {
-    ID: "spell-schools",
-    MENU: {
-      KEY: "spell-schools-menu",
-      HINT: "CUSTOM_DND5E.menu.spellSchools.hint",
-      ICON: "fas fa-book-sparkles",
-      LABEL: "CUSTOM_DND5E.menu.spellSchools.label",
-      NAME: "CUSTOM_DND5E.menu.spellSchools.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-spell-schools"
-      },
-      CONFIG: {
-        KEY: "spell-schools"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/spell-schools-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.PlVATLzmAndA0gfR"
-  },
   TOKEN: {
     SETTING: {
       APPLY_ELEVATION_TO_SELECTED_TOKENS: {
@@ -1086,60 +663,64 @@ export const CONSTANTS = {
         HINT: "CUSTOM_DND5E.setting.toggleStatusEffectOnSelectedTokens.hint",
         NAME: "CUSTOM_DND5E.setting.toggleStatusEffectOnSelectedTokens.name"
       },
+      BORDER_ENABLE: {
+        KEY: "token-border-enable",
+        HINT: "CUSTOM_DND5E.setting.tokenBorderEnable.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenBorderEnable.name"
+      },
       BORDER_SHAPE: {
         KEY: "token-border-shape",
         HINT: "CUSTOM_DND5E.setting.tokenBorderShape.hint",
         NAME: "CUSTOM_DND5E.setting.tokenBorderShape.name"
       },
+      BORDER_SCALE: {
+        KEY: "token-border-scale",
+        HINT: "CUSTOM_DND5E.setting.tokenBorderScale.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenBorderScale.name"
+      },
+      BORDER_SCALE_WITH_TOKEN: {
+        KEY: "token-border-scale-with-token",
+        HINT: "CUSTOM_DND5E.setting.tokenBorderScaleWithToken.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenBorderScaleWithToken.name"
+      },
+      BORDER_THICKNESS: {
+        KEY: "token-border-thickness",
+        HINT: "CUSTOM_DND5E.setting.tokenBorderThickness.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenBorderThickness.name"
+      },
       HUD_IMPROVEMENTS: {
         KEY: "token-hud-improvements"
+      },
+      HUD_SCALE: {
+        KEY: "token-hud-scale",
+        HINT: "CUSTOM_DND5E.setting.tokenHudScale.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenHudScale.name"
+      },
+      HUD_STATUS_EFFECT_ROWS: {
+        KEY: "token-hud-status-effect-rows",
+        HINT: "CUSTOM_DND5E.setting.tokenHudStatusEffectRows.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenHudStatusEffectRows.name"
+      },
+      HUD_STATUS_EFFECT_COLUMNS: {
+        KEY: "token-hud-status-effect-columns",
+        HINT: "CUSTOM_DND5E.setting.tokenHudStatusEffectColumns.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenHudStatusEffectColumns.name"
       }
     }
   },
-  TOOLS: {
-    MENU: {
-      KEY: "tool-ids-menu",
-      HINT: "CUSTOM_DND5E.menu.tools.hint",
-      ICON: "fas fa-trowel",
-      LABEL: "CUSTOM_DND5E.menu.tools.label",
-      NAME: "CUSTOM_DND5E.menu.tools.name"
-    },
+  TOKEN_DISTANCE: {
     SETTING: {
       ENABLE: {
-        KEY: "enable-tools-ids"
+        KEY: "enable-token-distance",
+        HINT: "CUSTOM_DND5E.setting.enableTokenDistance.hint",
+        NAME: "CUSTOM_DND5E.setting.enableTokenDistance.name"
       },
-      CONFIG: {
-        KEY: "tool-ids"
+      VIEW_ROLE: {
+        KEY: "token-distance-view-role",
+        HINT: "CUSTOM_DND5E.setting.tokenDistanceViewRole.hint",
+        NAME: "CUSTOM_DND5E.setting.tokenDistanceViewRole.name"
       }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/tools-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.mBgCguO7mTNQuPtz"
-  },
-  TOOL_PROFICIENCIES: {
-    MENU: {
-      KEY: "tool-proficiencies-menu",
-      HINT: "CUSTOM_DND5E.menu.toolProficiencies.hint",
-      ICON: "fas fa-hammer-brush",
-      LABEL: "CUSTOM_DND5E.menu.toolProficiencies.label",
-      NAME: "CUSTOM_DND5E.menu.toolProficiencies.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-tool-proficiencies"
-      },
-      CONFIG: {
-        KEY: "tool-proficiencies"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.Ls4Rn45UNhTBagHD"
+    }
   },
   WORKFLOWS: {
     ID: "workflows",
@@ -1162,10 +743,7 @@ export const CONSTANTS = {
       }
     },
     TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/workflows/workflows-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/workflows/workflows-list.hbs",
       EDIT: "modules/custom-dnd5e/templates/workflows/workflows-edit.hbs",
-      FORM_ENTITY: "modules/custom-dnd5e/templates/workflows/workflows-form-entity.hbs",
       TRIGGER_ROW: "modules/custom-dnd5e/templates/workflows/workflows-trigger-row.hbs",
       ACTION_ROW: "modules/custom-dnd5e/templates/workflows/workflows-action-row.hbs",
       REQUEST_ROLL_RESULT: "modules/custom-dnd5e/templates/workflows/request-roll-result-form.hbs",
@@ -1182,78 +760,10 @@ export const CONSTANTS = {
   },
   UUID: {
     TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
+      FORM: "modules/custom-dnd5e/templates/forms/list-form.hbs",
+      LIST: "modules/custom-dnd5e/templates/forms/list-edit.hbs"
     }
   },
-  WEAPON_IDS: {
-    MENU: {
-      KEY: "weapon-ids-menu",
-      HINT: "CUSTOM_DND5E.menu.weaponIds.hint",
-      ICON: "fas fa-sword",
-      LABEL: "CUSTOM_DND5E.menu.weaponIds.label",
-      NAME: "CUSTOM_DND5E.menu.weaponIds.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-weapon-ids"
-      },
-      CONFIG: {
-        KEY: "weapon-ids"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.CeUiNZoH8giNsqNR"
-  },
-  WEAPON_PROFICIENCIES: {
-    MENU: {
-      KEY: "weapon-proficiencies-menu",
-      HINT: "CUSTOM_DND5E.menu.weaponProficiencies.hint",
-      ICON: "fas fa-swords",
-      LABEL: "CUSTOM_DND5E.menu.weaponProficiencies.label",
-      NAME: "CUSTOM_DND5E.menu.weaponProficiencies.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-weapon-proficiencies"
-      },
-      CONFIG: {
-        KEY: "weapon-proficiencies"
-      }
-    },
-    TEMPLATE: {
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-edit-in-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.Cy09wdPVi8XrkjJ2"
-  },
-  WEAPON_MASTERIES: {
-    ID: "weapon-masteries",
-    MENU: {
-      KEY: "weapon-masteries-menu",
-      HINT: "CUSTOM_DND5E.menu.weaponMasteries.hint",
-      ICON: "fas fa-hand-fist",
-      LABEL: "CUSTOM_DND5E.menu.weaponMasteries.label",
-      NAME: "CUSTOM_DND5E.menu.weaponMasteries.name"
-    },
-    SETTING: {
-      ENABLE: {
-        KEY: "enable-weapon-masteries"
-      },
-      CONFIG: {
-        KEY: "weapon-masteries"
-      }
-    },
-    TEMPLATE: {
-      EDIT: "modules/custom-dnd5e/templates/weapon-masteries-edit.hbs",
-      FORM: "modules/custom-dnd5e/templates/config-form.hbs",
-      LIST: "modules/custom-dnd5e/templates/config-list.hbs"
-    },
-    UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.wM3kTpNxR7vYhD9c"
-  }
 };
 
 export const JOURNAL_HELP_BUTTON = {
@@ -1262,6 +772,11 @@ export const JOURNAL_HELP_BUTTON = {
   action: "help",
   uuid: null
 };
+
+/**
+ * Status effects the D&D 5e system applies automatically based on each token's own state.
+ */
+export const SYSTEM_MANAGED_STATUSES = new Set(["bloodied", "falling"]);
 
 export const SETTING_BY_ENTITY_TYPE = {
   COUNTERS: {

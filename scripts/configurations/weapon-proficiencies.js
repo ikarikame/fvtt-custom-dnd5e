@@ -1,32 +1,88 @@
-import { CONSTANTS } from "../constants.js";
 import {
-  c5eLoadTemplates,
   checkEmpty,
-  getDefaultDnd5eConfig,
   getSetting,
   registerMenu,
   registerSetting,
   resetDnd5eConfig,
   resetSetting } from "../utils.js";
-import { WeaponProficienciesForm } from "../forms/weapon-proficiencies-form.js";
+import { MODULE } from "../constants.js";
+import { ConfigForm } from "../forms/config-form.js";
+import { configs } from "./registry.js";
 
-const constants = CONSTANTS.WEAPON_PROFICIENCIES;
+/* -------------------------------------------- */
+/*  CONSTANTS                                   */
+/* -------------------------------------------- */
+
+export const constants = {
+  ID: "weaponProficiencies",
+  MENU: {
+    KEY: "weapon-proficiencies-menu",
+    HINT: "CUSTOM_DND5E.menu.weaponProficiencies.hint",
+    ICON: "fas fa-swords",
+    LABEL: "CUSTOM_DND5E.menu.weaponProficiencies.label",
+    NAME: "CUSTOM_DND5E.menu.weaponProficiencies.name"
+  },
+  SETTING: {
+    ENABLE: {
+      KEY: "enable-weapon-proficiencies"
+    },
+    CONFIG: {
+      KEY: "weapon-proficiencies"
+    }
+  },
+  UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.Cy09wdPVi8XrkjJ2"
+};
+
+export const configKeys = ["weaponProficiencies", "weaponProficienciesMap", "weaponTypes"];
+
+/* -------------------------------------------- */
+/*  FORM CLASS                                  */
+/* -------------------------------------------- */
 
 /**
- * Register settings and load templates.
+ * Weapon proficiencies settings menu form.
+ * @extends ConfigForm
+ */
+class WeaponProficienciesForm extends ConfigForm {
+  /**
+   * Constructor for WeaponProficienciesForm.
+   * @param {...any} args
+   */
+  constructor(...args) {
+    super(args);
+    this.editInList = true;
+    this.nestable = true;
+    this.config = configs.weaponProficiencies;
+    this.settingDefault = this.config.getSettingDefault();
+    this.setting = getSetting(this.settingKey) || this.settingDefault;
+    this.listTitle = `CUSTOM_DND5E.form.${constants.ID}.listTitle`;
+  }
+
+  /* -------------------------------------------- */
+
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-weapon-proficiencies-form`,
+    window: {
+      title: `CUSTOM_DND5E.form.${constants.ID}.title`
+    }
+  };
+}
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
+
+/**
+ * Register settings.
  */
 export function register() {
   registerSettings();
-
-  const templates = [
-    constants.TEMPLATE.FORM,
-    constants.TEMPLATE.LIST
-  ];
-  c5eLoadTemplates(templates);
 }
 
+/* -------------------------------------------- */
+
 /**
- * Register settings,
+ * Register settings.
  */
 function registerSettings() {
   registerMenu(
@@ -65,10 +121,12 @@ function registerSettings() {
 }
 
 /* -------------------------------------------- */
+/*  CONFIG                                      */
+/* -------------------------------------------- */
 
 /**
  * Get setting default.
- * @returns {object} The setting
+ * @returns {object} Default setting data
  */
 export function getSettingDefault() {
   return buildData(CONFIG.CUSTOM_DND5E);
@@ -90,8 +148,8 @@ export async function resetConfigSetting() {
 
 /**
  * Build setting data.
- * @param {object} config The config data
- * @returns {object} The setting data
+ * @param {object} config Config data
+ * @returns {object} Setting data
  */
 function buildData(config) {
   const data = {};
@@ -119,12 +177,13 @@ function buildData(config) {
 /* -------------------------------------------- */
 
 /**
- * Set CONFIG.DND5E.weaponProficiencies, CONFIG.DND5E.weaponProficienciesMap and CONFIG.DND5E.weaponTypes
- * @param {object} [settingData=null] The setting data
+ * Set CONFIG.DND5E.weaponProficiencies, CONFIG.DND5E.weaponProficienciesMap and CONFIG.DND5E.weaponTypes.
+ * @param {object} [settingData=null]
  * @returns {void}
  */
-export function setConfig(settingData = null) {
+export function setConfig(settingData) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
+  settingData ??= getSetting(constants.SETTING.CONFIG.KEY);
   const properties = ["weaponProficiencies", "weaponProficienciesMap", "weaponTypes"];
   if ( checkEmpty(settingData) ) return handleEmptyData(properties);
 

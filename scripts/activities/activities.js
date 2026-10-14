@@ -1,41 +1,164 @@
-import { CONSTANTS } from "../constants.js";
-import { c5eLoadTemplates, getSetting, registerMenu, registerSetting } from "../utils.js";
+import { CONSTANTS, MODULE } from "../constants.js";
+import { c5eLoadTemplates, getModuleMarker, getSetting, registerMenu, registerSetting } from "../utils.js";
 import { ActivitiesForm } from "../forms/activities-form.js";
 import { MacroActivity } from "./activity-macro.js";
 import { MoveActivity } from "./activity-move.js";
+import { MultiattackActivity, MultiattackMessageData } from "./activity-multiattack.js";
 import { SwapActivity } from "./activity-swap.js";
 import { TargetingMode } from "./targeting-mode.js";
 
 const constants = CONSTANTS.ACTIVITIES;
 
+/* -------------------------------------------- */
+/*  HELPERS                                     */
+/* -------------------------------------------- */
+
+/**
+ * Clear the current user's targeted tokens.
+ */
+function _clearUserTargets() {
+  if ( !canvas.ready || !game.user.targets.size ) return;
+  canvas.tokens.setTargets([]);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get the targeted tokens stored on the chat message.
+ * @param {ChatMessage} [message]
+ * @returns {Promise<Token[]>} List of targeted tokens
+ */
+export async function getTargetedTokensFromMessage(message) {
+  const targetData = message?.getFlag?.("dnd5e", "targets");
+  if ( !targetData?.length ) return [];
+  const tokens = [];
+  for ( const entry of targetData ) {
+    const actor = await fromUuid(entry.uuid);
+    const tokenDoc = actor?.token ?? actor?.getActiveTokens?.()[0]?.document;
+    if ( tokenDoc?.object ) tokens.push(tokenDoc.object);
+  }
+  return tokens;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Move one or more tokens to new positions, bypassing Foundry's movement
+ * pipeline. Uses `isPaste: true` to avoid movement constraints.
+ * @param {Scene} scene
+ * @param {Array<{tokenDoc: TokenDocument, x: number, y: number, elevation?: number}>} moves
+ * @param {object} [opts]
+ * @param {boolean} [opts.animate=true] Animate the move at walking speed
+ * @param {boolean} [opts.stripHistory=false] Strip movement history so the
+ *   move isn't tracked against combat-turn movement
+ * @returns {Promise<void>}
+ */
+export async function applyBypassedMoves(scene, moves, { animate = true, stripHistory = false } = {}) {
+  if ( !scene || !moves?.length ) return;
+
+  const ids = new Set(moves.map(m => m.tokenDoc.id));
+  const hookId = stripHistory
+    ? Hooks.on("preUpdateToken", (doc, changed) => {
+      if ( !ids.has(doc.id) ) return;
+      delete changed._movementHistory;
+    })
+    : null;
+
+  try {
+    if ( animate ) {
+      const instructions = {};
+      for ( const m of moves ) {
+        instructions[m.tokenDoc.id] = {
+          waypoints: [{
+            x: m.x,
+            y: m.y,
+            elevation: m.elevation ?? m.tokenDoc.elevation,
+            action: "walk"
+          }]
+        };
+      }
+      await scene.moveTokens(instructions, { isPaste: true });
+    } else {
+      const updates = moves.map(m => ({
+        _id: m.tokenDoc.id,
+        x: m.x,
+        y: m.y,
+        elevation: m.elevation ?? m.tokenDoc.elevation
+      }));
+      await scene.updateEmbeddedDocuments("Token", updates, { animate: false, isPaste: true });
+    }
+  } finally {
+    if ( hookId ) Hooks.off("preUpdateToken", hookId);
+  }
+}
+
+/* -------------------------------------------- */
+
 /**
  * Determine targeting requirements for an activity.
  * @param {Activity} activity Activity being used
+ * @param {object} [options]
+ * @param {boolean} [options.fallback=false] Fall back to 1 creature when no target type or count is set
  * @returns {{ count: number, typeLabel: string } | null} Requirements, or null if no targeting needed
  */
-function _getTargetingRequirements(activity) {
-  const type = activity.target?.affects?.type;
-  const typeLabel = type && CONFIG.DND5E.individualTargetTypes[type]
-    ? game.i18n.localize(CONFIG.DND5E.individualTargetTypes[type].label)
-    : game.i18n.localize(CONFIG.DND5E.individualTargetTypes.creature?.label ?? "Creature");
+function _getTargetingRequirements(activity, { fallback = false } = {}) {
+  const rawType = activity.target?.affects?.type;
+  const labelFor = type => game.i18n.localize(
+    CONFIG.DND5E.individualTargetTypes[type]?.label ?? "Creature"
+  );
+
+  // Multiattack runs its own targeting prompt for each attack
+  if ( activity.type === "custom-dnd5e-multiattack" ) return null;
 
   // Custom activities that always need targets
   if ( activity.type === "custom-dnd5e-move" ) {
-    return { count: 1, typeLabel };
+    return { count: 1, typeLabel: labelFor(rawType) };
   }
   if ( activity.type === "custom-dnd5e-swap" && !activity.swap?.actorUuid ) {
-    return { count: 1, typeLabel };
+    return { count: 1, typeLabel: labelFor(rawType) };
   }
 
   // Standard activities with individual target data
-  if ( !type || type === "self" || type === "space" ) return null;
-  if ( !CONFIG.DND5E.individualTargetTypes[type] ) return null;
+  if ( rawType === "self" || rawType === "space" ) return null;
   if ( activity.target?.template?.type ) return null;
-  const count = activity.target?.affects?.count;
-  if ( !Number.isInteger(count) || count <= 0 ) return null;
 
-  return { count, typeLabel };
+  let type = rawType;
+  if ( !type ) {
+    if ( !fallback ) return null;
+    type = "creature";
+  }
+  if ( !CONFIG.DND5E.individualTargetTypes[type] ) return null;
+
+  let count = activity.target?.affects?.count;
+  if ( !Number.isInteger(count) || count <= 0 ) {
+    if ( !fallback ) return null;
+    count = 1;
+  }
+
+  return { count, typeLabel: labelFor(type) };
 }
+
+/* -------------------------------------------- */
+
+/**
+ * Add the module marker to activities in the Create Activity list.
+ * @param {ApplicationV2} app
+ * @param {HTMLElement} html
+ */
+function addActivityMarkers(app, html) {
+  const marker = getModuleMarker();
+  if ( !marker ) return;
+
+  html.querySelectorAll(`input[name="type"][value^="${MODULE.ID}-"]`).forEach(input => {
+    const label = input.closest("label")?.querySelector("span");
+    if ( !label || label.querySelector(".custom-dnd5e-module-marker") ) return;
+    label.insertAdjacentHTML("beforeend", ` ${marker}`);
+  });
+}
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
 
 /**
  * Register settings and load templates.
@@ -47,7 +170,17 @@ export function register() {
       scope: "world",
       config: false,
       type: Object,
-      default: { macro: false, move: false, swap: false, targeting: false }
+      default: {
+        macro: false,
+        move: false,
+        multiattack: false,
+        multiattackDice: "all",
+        multiattackPanToTargets: false,
+        swap: false,
+        targeting: false,
+        fallbackTarget: false,
+        clearTargets: "none"
+      }
     }
   );
 
@@ -78,6 +211,14 @@ export function register() {
     };
   }
 
+  CONFIG.ChatMessage.dataModels[constants.MULTIATTACK_MESSAGE_TYPE] = MultiattackMessageData;
+
+  if ( setting?.multiattack ) {
+    CONFIG.DND5E.activityTypes["custom-dnd5e-multiattack"] = {
+      documentClass: MultiattackActivity
+    };
+  }
+
   if ( setting?.swap ) {
     CONFIG.DND5E.activityTypes["custom-dnd5e-swap"] = {
       documentClass: SwapActivity
@@ -85,27 +226,70 @@ export function register() {
   }
 
   if ( setting?.targeting ) {
+    const fallback = !!setting.fallbackTarget;
     Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
       if ( usageConfig._bypassTargeting ) return true;
       if ( !canvas.ready ) return true;
 
-      const targeting = _getTargetingRequirements(activity);
+      const targeting = _getTargetingRequirements(activity, { fallback });
       if ( !targeting ) return true;
+
+      if ( setting.clearTargets === "before" ) _clearUserTargets();
+
       if ( game.user.targets.size >= targeting.count ) return true;
 
       const options = { activity, ...targeting, usageConfig, dialogConfig, messageConfig };
       TargetingMode.activate(options).then(completed => {
         if ( !completed ) return;
+        if ( messageConfig?.data?.flags?.dnd5e ) delete messageConfig.data.flags.dnd5e.targets;
         activity.use({ ...usageConfig, _bypassTargeting: true }, dialogConfig, messageConfig);
       });
       return false;
     });
   }
 
+  if ( setting?.clearTargets === "after" ) {
+    // Whether a later damage or healing roll will need the targets.
+    const hasDamage = activity => !!(activity?.damage?.parts?.length
+      || activity?.healing?.formula
+      || activity?.item?.system?.properties?.has("amm"));
+
+    let clearAfterDamage = false;
+
+    // For activities without damage, clear immediately after use or after the attack roll.
+    // For activities with damage, defer clearing until damage is rolled.
+    Hooks.on("dnd5e.postUseActivity", activity => {
+      if ( activity.type === "attack" ) return;
+      if ( hasDamage(activity) ) {
+        clearAfterDamage = true;
+        return;
+      }
+      _clearUserTargets();
+    });
+
+    Hooks.on("dnd5e.rollAttack", (rolls, data) => {
+      if ( hasDamage(data?.subject) ) {
+        clearAfterDamage = true;
+        return;
+      }
+      _clearUserTargets();
+    });
+
+    Hooks.on("dnd5e.rollDamageV2", () => {
+      if ( !clearAfterDamage ) return;
+      clearAfterDamage = false;
+      _clearUserTargets();
+    });
+  }
+
+  Hooks.on("renderCreateDocumentDialog", addActivityMarkers);
+
   c5eLoadTemplates([
     constants.TEMPLATE.FORM,
     constants.TEMPLATE.MACRO_EFFECT,
     constants.TEMPLATE.MOVE_EFFECT,
+    constants.TEMPLATE.MULTIATTACK_CARD,
+    constants.TEMPLATE.MULTIATTACK_EFFECT,
     constants.TEMPLATE.SWAP_ACTIVATION,
     constants.TEMPLATE.SWAP_TARGETING,
     constants.TEMPLATE.SWAP_EFFECT

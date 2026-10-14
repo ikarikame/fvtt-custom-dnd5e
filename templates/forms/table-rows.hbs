@@ -1,0 +1,30 @@
+{{#each rows}}
+<li class="item custom-dnd5e-item" data-index="{{this.index}}">
+    <div class="item-row">
+        {{#each ../columns}}
+        <div class="{{cellClass}}">
+            <input
+                type="{{type}}"
+                name="{{../../section}}.{{../index}}.{{key}}"
+                value="{{lookup .. key}}"
+                {{#if placeholder}}placeholder="{{localize placeholder}}"{{/if}}
+                {{#if min}}min="{{min}}"{{/if}}
+                {{#if max}}max="{{max}}"{{/if}}
+                {{#if step}}step="{{step}}"{{/if}}>
+        </div>
+        {{/each}}
+        <div class="item-controls always-visible">
+            <button
+                type="button"
+                data-action="removeRow"
+                data-section="{{../section}}"
+                data-index="{{this.index}}"
+                class="unbutton control-button item-control always-interactive"
+                data-tooltip="{{localize 'CUSTOM_DND5E.form.button.delete.tooltip'}}"
+                aria-label="{{localize 'CUSTOM_DND5E.form.button.delete.tooltip'}}">
+                <i class="fas fa-trash" inert></i>
+            </button>
+        </div>
+    </div>
+</li>
+{{/each}}

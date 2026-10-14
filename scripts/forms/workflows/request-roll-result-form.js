@@ -136,7 +136,7 @@ export class RequestRollResultForm extends CustomDnd5eForm {
   /**
    * Prepare the context for rendering the form.
    *
-   * @returns {Promise<object>} The context data.
+   * @returns {Promise<object>} Context data
    */
   async _prepareContext() {
     const actionChoices = getSubActionChoices(this.entityType);
@@ -411,7 +411,9 @@ export class RequestRollResultForm extends CustomDnd5eForm {
     // Coerce numeric fields
     for ( const action of Object.values(parsed) ) {
       if ( action.sound?.volume !== undefined ) action.sound.volume = Number(action.sound.volume);
-      if ( action.actionValue !== undefined && action.actionValue !== "" ) action.actionValue = Number(action.actionValue);
+      if ( action.actionValue !== undefined && action.actionValue !== "" && !isNaN(Number(action.actionValue)) ) {
+        action.actionValue = Number(action.actionValue);
+      }
     }
 
     return parsed;

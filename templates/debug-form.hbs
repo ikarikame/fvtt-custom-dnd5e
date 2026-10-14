@@ -3,7 +3,7 @@
         <div class="form-group">
             <label>{{localize "CUSTOM_DND5E.form.debug.consoleMessages.label"}}</label>
             <div class="form-fields">
-                <dnd5e-checkbox id="custom-dnd5e-debug" name="debug"{{#if debug}} checked{{/if}}></dnd5e-checkbox>
+                <dnd5e-checkbox id="custom-dnd5e-debug" name="debug" {{checked debug}}></dnd5e-checkbox>
             </div>
             <p class="hint">{{localize "CUSTOM_DND5E.form.debug.consoleMessages.note.1"}}</label>
             <p class="custom-dnd5e-advice notes">{{localize "CUSTOM_DND5E.form.debug.consoleMessages.note.2"}}</label>
@@ -11,7 +11,11 @@
         <div class="form-group">
             <label>{{localize "CUSTOM_DND5E.exportData"}}</label>
             <div class="form-fields">
-                 <button type="button" data-action="export" data-tooltip="{{localize "CUSTOM_DND5E.form.debug.button.exportData.tooltip"}}" style="flex:1;">
+                 <button
+                     type="button"
+                     data-action="export"
+                     data-tooltip="{{localize "CUSTOM_DND5E.form.debug.button.exportData.tooltip"}}"
+                     style="flex:1;">
                     <i class="fas fa-solid fa-file-export"></i>{{localize "CUSTOM_DND5E.exportData"}}
                 </button>
             </div>

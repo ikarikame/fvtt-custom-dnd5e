@@ -1,6 +1,7 @@
 import { CONSTANTS, JOURNAL_HELP_BUTTON, MODULE } from "../constants.js";
-import { getSetting, setSetting, resetSetting } from "../utils.js";
+import { getSetting, setSetting, resetSetting, syncAutoApplyDowned } from "../utils.js";
 import { CustomDnd5eForm } from "./custom-dnd5e-form.js";
+import { configs } from "../configurations/registry.js";
 
 /**
  * Class representing the Gameplay Form.
@@ -9,7 +10,7 @@ export class GameplayForm extends CustomDnd5eForm {
   /**
    * Constructor for GameplayForm.
    *
-   * @param {...any} args The arguments for the form.
+   * @param {...any} args
    */
   constructor(...args) {
     super(args);
@@ -57,7 +58,7 @@ export class GameplayForm extends CustomDnd5eForm {
   /**
    * Prepare the context for rendering the form.
    *
-   * @returns {Promise<object>} The context data.
+   * @returns {Promise<object>} Context data
    */
   async _prepareContext() {
     const massiveDamageTableUuid = getSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_TABLE.KEY);
@@ -68,13 +69,14 @@ export class GameplayForm extends CustomDnd5eForm {
       levelUpHitPointsRerollMinimumValue: getSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.REROLL.MINIMUM_VALUE.SETTING.KEY),
       levelUpHitPointsRerollOnce: getSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.REROLL.ONCE.SETTING.KEY),
       levelUpHitPointsShowTakeAverage: getSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.SHOW_TAKE_AVERAGE.SETTING.KEY),
-      applyBloodied: getSetting(CONSTANTS.BLOODIED.SETTING.APPLY_BLOODIED.KEY),
-      removeBloodiedOnDead: getSetting(CONSTANTS.BLOODIED.SETTING.REMOVE_BLOODIED_ON_DEAD.KEY),
-      bloodiedIcon: getSetting(CONSTANTS.BLOODIED.SETTING.BLOODIED_ICON.KEY),
-      bloodiedTint: getSetting(CONSTANTS.BLOODIED.SETTING.BLOODIED_TINT.KEY),
+      applyBloodied: getSetting(configs.bloodied.SETTING.APPLY_BLOODIED.KEY),
+      removeBloodiedOnDead: getSetting(configs.bloodied.SETTING.REMOVE_BLOODIED_ON_DEAD.KEY),
+      bloodiedIcon: getSetting(configs.bloodied.SETTING.BLOODIED_ICON.KEY),
+      bloodiedTint: getSetting(configs.bloodied.SETTING.BLOODIED_TINT.KEY),
       applyUnconscious: getSetting(CONSTANTS.UNCONSCIOUS.SETTING.APPLY_UNCONSCIOUS.KEY),
       applyDead: getSetting(CONSTANTS.DEAD.SETTING.APPLY_DEAD.KEY),
       applyInstantDeath: getSetting(CONSTANTS.DEAD.SETTING.APPLY_INSTANT_DEATH.KEY),
+      negativeHpDeathThreshold: getSetting(CONSTANTS.DEAD.SETTING.NEGATIVE_HP_DEATH_THRESHOLD.KEY),
       deadRotation: getSetting(CONSTANTS.DEAD.SETTING.DEAD_ROTATION.KEY),
       deadTint: getSetting(CONSTANTS.DEAD.SETTING.DEAD_TINT.KEY),
       deathSavesRollMode: getSetting(CONSTANTS.DEATH_SAVES.SETTING.DEATH_SAVES_ROLL_MODE.KEY),
@@ -87,6 +89,8 @@ export class GameplayForm extends CustomDnd5eForm {
       exhaustionSavingThrowDcScaling: getSetting(CONSTANTS.EXHAUSTION.SETTING.EXHAUSTION_SAVING_THROW_DC_SCALING.KEY),
       exhaustionAnimation: getSetting(CONSTANTS.EXHAUSTION.SETTING.EXHAUSTION_ANIMATION.KEY),
       applyMassiveDamage: getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_MASSIVE_DAMAGE.KEY),
+      massiveDamageThreshold: getSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_THRESHOLD.KEY),
+      massiveDamageDc: getSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_DC.KEY),
       applyNegativeHp: getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP.KEY),
       applyNegativeHpNpc: getSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP_NPC.KEY),
       negativeHpHealFromZero: getSetting(CONSTANTS.HIT_POINTS.SETTING.NEGATIVE_HP_HEAL_FROM_ZERO.KEY),
@@ -95,6 +99,7 @@ export class GameplayForm extends CustomDnd5eForm {
       awardInspirationRollTypes: getSetting(CONSTANTS.INSPIRATION.SETTING.AWARD_INSPIRATION_ROLL_TYPES.KEY),
       inspirationAnimation: getSetting(CONSTANTS.INSPIRATION.SETTING.INSPIRATION_ANIMATION.KEY),
       useAverageDamage: getSetting(CONSTANTS.AVERAGE_DAMAGE.SETTING.USE.KEY),
+      averageDamageShowDialog: getSetting(CONSTANTS.AVERAGE_DAMAGE.SETTING.SHOW_DIALOG.KEY),
       enableMobDamage: getSetting(CONSTANTS.MOB_DAMAGE.SETTING.ENABLE.KEY),
       useAverageMobDamage: getSetting(CONSTANTS.MOB_DAMAGE.SETTING.USE_AVERAGE_DAMAGE.KEY),
       enableProbabilisticDamage: getSetting(CONSTANTS.PROBABILISTIC_DAMAGE.SETTING.ENABLE.KEY),
@@ -102,7 +107,23 @@ export class GameplayForm extends CustomDnd5eForm {
       proneRotation: getSetting(CONSTANTS.PRONE.SETTING.PRONE_ROTATION.KEY),
       useCampSupplies: getSetting(CONSTANTS.RESTING.SETTING.USE_CAMP_SUPPLIES.KEY),
       selects: {
+        applyDead: {
+          choices: {
+            none: "CUSTOM_DND5E.none",
+            dead: "CUSTOM_DND5E.dead",
+            unconscious: "CUSTOM_DND5E.unconscious",
+            deadUnlessImportant: "CUSTOM_DND5E.form.gameplay.dead.applyDead.deadUnlessImportant"
+          }
+        },
         averageDamage: {
+          choices: {
+            neither: "CUSTOM_DND5E.neither",
+            character: "CUSTOM_DND5E.playerCharacters",
+            npc: "CUSTOM_DND5E.npcs",
+            both: "CUSTOM_DND5E.both"
+          }
+        },
+        applyMassiveDamage: {
           choices: {
             neither: "CUSTOM_DND5E.neither",
             character: "CUSTOM_DND5E.playerCharacters",
@@ -226,13 +247,14 @@ export class GameplayForm extends CustomDnd5eForm {
         resetSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.REROLL.MINIMUM_VALUE.SETTING.KEY),
         resetSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.REROLL.ONCE.SETTING.KEY),
         resetSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.SHOW_TAKE_AVERAGE.SETTING.KEY),
-        resetSetting(CONSTANTS.BLOODIED.SETTING.APPLY_BLOODIED.KEY),
-        resetSetting(CONSTANTS.BLOODIED.SETTING.REMOVE_BLOODIED_ON_DEAD.KEY),
-        resetSetting(CONSTANTS.BLOODIED.SETTING.BLOODIED_ICON.KEY),
-        resetSetting(CONSTANTS.BLOODIED.SETTING.BLOODIED_TINT.KEY),
+        resetSetting(configs.bloodied.SETTING.APPLY_BLOODIED.KEY),
+        resetSetting(configs.bloodied.SETTING.REMOVE_BLOODIED_ON_DEAD.KEY),
+        resetSetting(configs.bloodied.SETTING.BLOODIED_ICON.KEY),
+        resetSetting(configs.bloodied.SETTING.BLOODIED_TINT.KEY),
         resetSetting(CONSTANTS.UNCONSCIOUS.SETTING.APPLY_UNCONSCIOUS.KEY),
         resetSetting(CONSTANTS.DEAD.SETTING.APPLY_DEAD.KEY),
         resetSetting(CONSTANTS.DEAD.SETTING.APPLY_INSTANT_DEATH.KEY),
+        resetSetting(CONSTANTS.DEAD.SETTING.NEGATIVE_HP_DEATH_THRESHOLD.KEY),
         resetSetting(CONSTANTS.DEAD.SETTING.DEAD_ROTATION.KEY),
         resetSetting(CONSTANTS.DEAD.SETTING.DEAD_TINT.KEY),
         resetSetting(CONSTANTS.DEATH_SAVES.SETTING.DEATH_SAVES_ROLL_MODE.KEY),
@@ -247,6 +269,8 @@ export class GameplayForm extends CustomDnd5eForm {
         resetSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_MASSIVE_DAMAGE.KEY),
         resetSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_ANIMATION.KEY),
         resetSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_TABLE.KEY),
+        resetSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_THRESHOLD.KEY),
+        resetSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_DC.KEY),
         resetSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP.KEY),
         resetSetting(CONSTANTS.HIT_POINTS.SETTING.NEGATIVE_HP_HEAL_FROM_ZERO.KEY),
         resetSetting(CONSTANTS.INITIATIVE.SETTING.REROLL_INITIATIVE_EACH_ROUND.KEY),
@@ -254,6 +278,7 @@ export class GameplayForm extends CustomDnd5eForm {
         resetSetting(CONSTANTS.INSPIRATION.SETTING.AWARD_INSPIRATION_ROLL_TYPES.KEY),
         resetSetting(CONSTANTS.INSPIRATION.SETTING.INSPIRATION_ANIMATION.KEY),
         resetSetting(CONSTANTS.AVERAGE_DAMAGE.SETTING.USE.KEY),
+        resetSetting(CONSTANTS.AVERAGE_DAMAGE.SETTING.SHOW_DIALOG.KEY),
         resetSetting(CONSTANTS.MOB_DAMAGE.SETTING.ENABLE.KEY),
         resetSetting(CONSTANTS.MOB_DAMAGE.SETTING.USE_AVERAGE_DAMAGE.KEY),
         resetSetting(CONSTANTS.PROBABILISTIC_DAMAGE.SETTING.ENABLE.KEY),
@@ -310,13 +335,15 @@ export class GameplayForm extends CustomDnd5eForm {
       setSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.REROLL.ONCE.SETTING.KEY, formData.object.levelUpHitPointsRerollOnce),
       setSetting(CONSTANTS.LEVEL_UP.HIT_POINTS.SHOW_TAKE_AVERAGE.SETTING.KEY,
         formData.object.levelUpHitPointsShowTakeAverage),
-      setSetting(CONSTANTS.BLOODIED.SETTING.APPLY_BLOODIED.KEY, formData.object.applyBloodied),
-      setSetting(CONSTANTS.BLOODIED.SETTING.REMOVE_BLOODIED_ON_DEAD.KEY, formData.object.removeBloodiedOnDead),
-      setSetting(CONSTANTS.BLOODIED.SETTING.BLOODIED_ICON.KEY, formData.object.bloodiedIcon),
-      setSetting(CONSTANTS.BLOODIED.SETTING.BLOODIED_TINT.KEY, formData.object.bloodiedTint),
+      setSetting(configs.bloodied.SETTING.APPLY_BLOODIED.KEY, formData.object.applyBloodied),
+      setSetting(configs.bloodied.SETTING.REMOVE_BLOODIED_ON_DEAD.KEY, formData.object.removeBloodiedOnDead),
+      setSetting(configs.bloodied.SETTING.BLOODIED_ICON.KEY, formData.object.bloodiedIcon),
+      setSetting(configs.bloodied.SETTING.BLOODIED_TINT.KEY, formData.object.bloodiedTint),
       setSetting(CONSTANTS.UNCONSCIOUS.SETTING.APPLY_UNCONSCIOUS.KEY, formData.object.applyUnconscious),
       setSetting(CONSTANTS.DEAD.SETTING.APPLY_DEAD.KEY, formData.object.applyDead),
       setSetting(CONSTANTS.DEAD.SETTING.APPLY_INSTANT_DEATH.KEY, formData.object.applyInstantDeath),
+      setSetting(CONSTANTS.DEAD.SETTING.NEGATIVE_HP_DEATH_THRESHOLD.KEY,
+        formData.object.negativeHpDeathThreshold),
       setSetting(CONSTANTS.DEAD.SETTING.DEAD_ROTATION.KEY, formData.object.deadRotation),
       setSetting(CONSTANTS.DEAD.SETTING.DEAD_TINT.KEY, formData.object.deadTint),
       setSetting(CONSTANTS.DEATH_SAVES.SETTING.DEATH_SAVES_ROLL_MODE.KEY, formData.object.deathSavesRollMode),
@@ -335,6 +362,9 @@ export class GameplayForm extends CustomDnd5eForm {
       setSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_MASSIVE_DAMAGE.KEY, formData.object.applyMassiveDamage),
       setSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_ANIMATION.KEY, formData.object.massiveDamageAnimation),
       setSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_TABLE.KEY, formData.object.massiveDamageTableUuid),
+      setSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_THRESHOLD.KEY,
+        formData.object.massiveDamageThreshold),
+      setSetting(CONSTANTS.HIT_POINTS.SETTING.MASSIVE_DAMAGE_DC.KEY, formData.object.massiveDamageDc),
       setSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP.KEY, formData.object.applyNegativeHp),
       setSetting(CONSTANTS.HIT_POINTS.SETTING.APPLY_NEGATIVE_HP_NPC.KEY, formData.object.applyNegativeHpNpc),
       setSetting(CONSTANTS.HIT_POINTS.SETTING.NEGATIVE_HP_HEAL_FROM_ZERO.KEY, formData.object.negativeHpHealFromZero),
@@ -345,6 +375,7 @@ export class GameplayForm extends CustomDnd5eForm {
       setSetting(CONSTANTS.INSPIRATION.SETTING.AWARD_INSPIRATION_ROLL_TYPES.KEY, awardInspirationRollTypes),
       setSetting(CONSTANTS.INSPIRATION.SETTING.INSPIRATION_ANIMATION.KEY, formData.object.inspirationAnimation),
       setSetting(CONSTANTS.AVERAGE_DAMAGE.SETTING.USE.KEY, formData.object.useAverageDamage),
+      setSetting(CONSTANTS.AVERAGE_DAMAGE.SETTING.SHOW_DIALOG.KEY, formData.object.averageDamageShowDialog),
       setSetting(CONSTANTS.MOB_DAMAGE.SETTING.ENABLE.KEY, formData.object.enableMobDamage),
       setSetting(CONSTANTS.MOB_DAMAGE.SETTING.USE_AVERAGE_DAMAGE.KEY, formData.object.useAverageMobDamage),
       setSetting(CONSTANTS.PROBABILISTIC_DAMAGE.SETTING.ENABLE.KEY, formData.object.enableProbabilisticDamage),
@@ -355,6 +386,8 @@ export class GameplayForm extends CustomDnd5eForm {
       setSetting(CONSTANTS.PRONE.SETTING.PRONE_ROTATION.KEY, formData.object.proneRotation),
       setSetting(CONSTANTS.RESTING.SETTING.USE_CAMP_SUPPLIES.KEY, formData.object.useCampSupplies)
     ]);
+
+    await syncAutoApplyDowned();
 
     foundry.applications.settings.SettingsConfig.reloadConfirm();
   }

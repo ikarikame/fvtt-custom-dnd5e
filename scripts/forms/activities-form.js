@@ -11,7 +11,7 @@ export class ActivitiesForm extends CustomDnd5eForm {
   /**
    * Constructor for ActivitiesForm.
    *
-   * @param {...any} args The arguments for the form.
+   * @param {...any} args
    */
   constructor(...args) {
     super(args);
@@ -58,15 +58,36 @@ export class ActivitiesForm extends CustomDnd5eForm {
   /**
    * Prepare the context for rendering the form.
    *
-   * @returns {Promise<object>} The context data.
+   * @returns {Promise<object>} Context data
    */
   async _prepareContext() {
     const setting = getSetting(constants.SETTING.CONFIG.KEY);
     return {
       macro: setting?.macro ?? false,
       move: setting?.move ?? false,
+      multiattack: setting?.multiattack ?? false,
+      multiattackDice: setting?.multiattackDice ?? "all",
+      multiattackPanToTargets: setting?.multiattackPanToTargets ?? false,
       swap: setting?.swap ?? false,
-      targeting: setting?.targeting ?? false
+      targeting: setting?.targeting ?? false,
+      fallbackTarget: setting?.fallbackTarget ?? false,
+      clearTargets: setting?.clearTargets ?? "none",
+      selects: {
+        multiattackDice: {
+          choices: {
+            all: "CUSTOM_DND5E.activities.multiattack.dice.all",
+            stagger: "CUSTOM_DND5E.activities.multiattack.dice.stagger",
+            none: "CUSTOM_DND5E.activities.multiattack.dice.none"
+          }
+        },
+        clearTargets: {
+          choices: {
+            none: "CUSTOM_DND5E.none",
+            before: "CUSTOM_DND5E.activities.targeting.clearTargets.before",
+            after: "CUSTOM_DND5E.activities.targeting.clearTargets.after"
+          }
+        }
+      }
     };
   }
 
@@ -112,8 +133,13 @@ export class ActivitiesForm extends CustomDnd5eForm {
     await setSetting(constants.SETTING.CONFIG.KEY, {
       macro: formData.object.macro ?? false,
       move: formData.object.move ?? false,
+      multiattack: formData.object.multiattack ?? false,
+      multiattackDice: formData.object.multiattackDice ?? "all",
+      multiattackPanToTargets: formData.object.multiattackPanToTargets ?? false,
       swap: formData.object.swap ?? false,
-      targeting: formData.object.targeting ?? false
+      targeting: formData.object.targeting ?? false,
+      fallbackTarget: formData.object.fallbackTarget ?? false,
+      clearTargets: formData.object.clearTargets ?? "none"
     });
 
     foundry.applications.settings.SettingsConfig.reloadConfirm();

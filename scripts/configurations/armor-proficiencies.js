@@ -1,26 +1,83 @@
-import { CONSTANTS } from "../constants.js";
-import { c5eLoadTemplates,
+import {
   checkEmpty,
   getSetting,
   registerMenu,
   registerSetting,
   resetDnd5eConfig,
   resetSetting } from "../utils.js";
-import { ArmorProficienciesForm } from "../forms/armor-proficiencies-form.js";
+import { MODULE } from "../constants.js";
+import { setEquipmentTypes } from "../misc.js";
+import { ConfigForm } from "../forms/config-form.js";
+import { configs } from "./registry.js";
 
-const constants = CONSTANTS.ARMOR_PROFICIENCIES;
+/* -------------------------------------------- */
+/*  CONSTANTS                                   */
+/* -------------------------------------------- */
+
+export const constants = {
+  ID: "armorProficiencies",
+  MENU: {
+    KEY: "armor-proficiencies-menu",
+    HINT: "CUSTOM_DND5E.menu.armorProficiencies.hint",
+    ICON: "fas fa-user-shield",
+    LABEL: "CUSTOM_DND5E.menu.armorProficiencies.label",
+    NAME: "CUSTOM_DND5E.menu.armorProficiencies.name"
+  },
+  SETTING: {
+    ENABLE: {
+      KEY: "enable-armor-proficiencies"
+    },
+    CONFIG: {
+      KEY: "armor-proficiencies"
+    }
+  },
+  UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.mTVSShsLO960Kmrk"
+};
+
+export const configKeys = ["armorProficiencies", "armorProficienciesMap", "armorTypes"];
+
+/* -------------------------------------------- */
+/*  FORM CLASS                                  */
+/* -------------------------------------------- */
 
 /**
- * Register settings and load templates.
+ * Armor proficiencies settings menu form.
+ * @extends ConfigForm
+ */
+class ArmorProficienciesForm extends ConfigForm {
+  /**
+   * Constructor for ArmorProficienciesForm.
+   * @param {...any} args
+   */
+  constructor(...args) {
+    super(args);
+    this.editInList = true;
+    this.nestable = true;
+    this.config = configs.armorProficiencies;
+    this.settingDefault = this.config.getSettingDefault();
+    this.setting = getSetting(this.settingKey) || this.settingDefault;
+    this.listTitle = `CUSTOM_DND5E.form.${constants.ID}.listTitle`;
+  }
+
+  /* -------------------------------------------- */
+
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-armor-proficiencies-form`,
+    window: {
+      title: `CUSTOM_DND5E.form.${constants.ID}.title`
+    }
+  };
+}
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
+
+/**
+ * Register settings.
  */
 export function register() {
   registerSettings();
-
-  const templates = [
-    constants.TEMPLATE.FORM,
-    constants.TEMPLATE.LIST
-  ];
-  c5eLoadTemplates(templates);
 }
 
 /* -------------------------------------------- */
@@ -65,11 +122,12 @@ function registerSettings() {
 }
 
 /* -------------------------------------------- */
+/*  CONFIG                                      */
+/* -------------------------------------------- */
 
 /**
  * Get setting default.
- *
- * @returns {object} The setting data.
+ * @returns {object} Setting data
  */
 export function getSettingDefault() {
   return buildConfigSetting(CONFIG.CUSTOM_DND5E);
@@ -79,8 +137,8 @@ export function getSettingDefault() {
 
 /**
  * Build setting data.
- * @param {object} config The config data.
- * @returns {object} The setting data.
+ * @param {object} config Config data
+ * @returns {object} Setting data
  */
 function buildConfigSetting(config) {
   const data = {};
@@ -112,30 +170,30 @@ function buildConfigSetting(config) {
  * Reset config and setting to their default values.
  */
 export async function resetConfigSetting() {
-  await resetDnd5eConfig(configKey);
+  configKeys.forEach(key => resetDnd5eConfig(key));
   await resetSetting(constants.SETTING.CONFIG.KEY);
+  setEquipmentTypes();
 }
 
 /* -------------------------------------------- */
 
 /**
  * Set CONFIG.DND5E.armorProficiencies, CONFIG.DND5E.armorProficienciesMap, and CONFIG.DND5E.armorTypes.
- * @param {object} [data=null] The armor proficiencies data.
+ * @param {object} [data=null]
  * @returns {void}
  */
-export function setConfig(data = null) {
+export function setConfig(data) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
+  data ??= getSetting(constants.SETTING.CONFIG.KEY);
   const properties = ["armorProficiencies", "armorProficienciesMap", "armorTypes"];
   if ( checkEmpty(data) ) return handleEmptyData(properties);
 
-  // Initialise the config object
   const config = {
     armorProficiencies: {},
     armorProficienciesMap: {},
     armorTypes: {}
   };
 
-  // Populate config
   Object.entries(data)
     .filter(([_, value]) => value.visible || value.visible === undefined)
     .forEach(([key, value]) => {
@@ -154,7 +212,6 @@ export function setConfig(data = null) {
       }
     });
 
-  // Apply the config to CONFIG.DND5E
   properties.forEach(property => {
     const hookLabel = property.charAt(0).toUpperCase() + property.slice(1);
     Hooks.callAll(`customDnd5e.set${hookLabel}Config`, config[property]);
@@ -163,13 +220,15 @@ export function setConfig(data = null) {
       CONFIG.DND5E[property] = config[property];
     }
   });
+
+  setEquipmentTypes();
 }
 
 /* -------------------------------------------- */
 
 /**
  * Handle empty data.
- * @param {string[]} properties The properties to check.
+ * @param {string[]} properties
  */
 function handleEmptyData(properties) {
   properties.forEach(property => {
@@ -177,4 +236,6 @@ function handleEmptyData(properties) {
       resetDnd5eConfig(property);
     }
   });
+
+  setEquipmentTypes();
 }

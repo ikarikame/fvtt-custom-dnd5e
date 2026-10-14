@@ -1,9 +1,13 @@
 import { CONSTANTS, MODULE, SETTING_BY_ENTITY_TYPE, SHEET_TYPE } from "../constants.js";
-import { c5eLoadTemplates, checkEmpty, getFlag, getSetting, registerMenu, registerSetting, resolveFormula } from "../utils.js";
+import { c5eLoadTemplates, checkEmpty, getFlag, getSetting, parseNumber, registerMenu, registerSetting, resolveFormula } from "../utils.js";
 import { CountersForm } from "../forms/counters/counters-form.js";
 import { CountersFormEntity } from "../forms/counters/counters-form-entity.js";
 
 const constants = CONSTANTS.COUNTERS;
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
 
 /**
  * Register settings and hooks, and load templates.
@@ -81,7 +85,8 @@ function registerItemSheetTab() {
   if ( !ItemSheet5e.TABS.find(t => t.tab === "counters") ) {
     ItemSheet5e.TABS.push({
       tab: "counters",
-      label: "CUSTOM_DND5E.counters"
+      label: "CUSTOM_DND5E.counters",
+      condition: () => getSetting(constants.SETTING.COUNTERS.KEY)
     });
   }
   ItemSheet5e.PARTS.counters = {
@@ -102,7 +107,8 @@ function registerGroupSheetTab() {
     GroupActorSheet.TABS.push({
       tab: "counters",
       label: "CUSTOM_DND5E.counters",
-      icon: "fas fa-tally"
+      icon: "fas fa-tally",
+      condition: () => getSetting(constants.SETTING.COUNTERS.KEY)
     });
   }
   GroupActorSheet.PARTS.counters = {
@@ -114,160 +120,14 @@ function registerGroupSheetTab() {
 }
 
 /* -------------------------------------------- */
-
-/**
- * Prepare counter data for the counters sheet part.
- * @param {object} sheet The sheet
- * @param {string} partId The part ID
- * @param {object} context The context
- * @param {object} options The options
- */
-function prepareCountersContext(sheet, partId, context, options) {
-  if ( partId !== "counters" ) return;
-  const docName = sheet.document?.documentName;
-  if ( docName === "Item" ) {
-    context.counters = mergeCounters(sheet.document, CONSTANTS.COUNTERS.SETTING.ITEM_COUNTERS.KEY);
-  } else if ( docName === "Actor" && sheet.document?.type === "group" ) {
-    context.counters = mergeCounters(sheet.document, CONSTANTS.COUNTERS.SETTING.ACTOR_COUNTERS.KEY);
-  }
-}
-
-/* -------------------------------------------- */
-
-/**
- * Set up counter interactions on the item sheet.
- * @param {object} app The app
- * @param {object} html The HTML
- * @param {object} data The data
- */
-function addItemCounters(app, html, data) {
-  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
-  const container = html.querySelector("#custom-dnd5e-counters");
-  if ( !container ) return;
-  const settingKey = CONSTANTS.COUNTERS.SETTING.ITEM_COUNTERS.KEY;
-  const counters = mergeCounters(app.document, settingKey);
-  setupCounterInteractions(app.document, counters, container, app.isEditable);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Set up counter interactions on the group actor sheet.
- * @param {object} app The app
- * @param {object} html The HTML
- * @param {object} data The data
- */
-function addGroupCounters(app, html, data) {
-  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
-  const container = html.querySelector("#custom-dnd5e-counters");
-  if ( !container ) return;
-  const settingKey = CONSTANTS.COUNTERS.SETTING.ACTOR_COUNTERS.KEY;
-  const counters = mergeCounters(app.document, settingKey);
-  setupCounterInteractions(app.document, counters, container, app.isEditable);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Handle actor pre-update triggers.
- * @param {object} actor The actor
- * @param {object} data  The data
- * @param {object} options The options
- * @param {string} userId The user ID
- */
-function handlePreUpdateActor(actor, data, options, userId) {
-  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
-  if ( !actor.isOwner ) return;
-  captureOldCounterValues(actor, data, options);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Handle item pre-update triggers.
- * @param {object} item The item
- * @param {object} data The data
- * @param {object} options The options
- * @param {string} userId The user ID
- */
-function handlePreUpdateItem(item, data, options, userId) {
-  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
-  if ( !item.isOwner ) return;
-  captureOldCounterValues(item, data, options);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Capture old counter values.
- * @param {Actor|Item} entity The entity
- * @param {object} data The data
- * @param {object} options The options
- */
-function captureOldCounterValues(entity, data, options) {
-  if ( !hasDataChanged(data) ) return;
-  const counters = getCounters(entity);
-  if ( !counters ) return;
-  const previousValues = {};
-  for ( const [counterKey, counter] of Object.entries(counters) ) {
-    if ( !["fraction", "number", "pips"].includes(counter.type) ) continue;
-    previousValues[counterKey] = counter.value ?? 0;
-  }
-  options.customDnd5ePreviousCounterValues = previousValues;
-}
-
-/* -------------------------------------------- */
-
-/**
- * Whether the counter's value has changed.
- * @param {object} data The data
- * @returns {boolean} Whether the counter's value has changed
- */
-export function hasDataChanged(data) {
-  return Object.hasOwn(data, "flags")
-        && data.flags[MODULE.ID] && !Object.hasOwn(data.flags[MODULE.ID], "-=counters");
-}
-
-/* -------------------------------------------- */
-
-/**
- * Get the current value of a counter.
- * @param {object} data The data
- * @param {string} counterKey The counter key
- * @returns {number|null} The counter value
- */
-export function getCounterValue(data, counterKey) {
-  if ( counterKey.startsWith("counters.") ) {
-    const key = counterKey.slice(9);
-    return data.flags?.[MODULE.ID]?.counters?.[key]?.value ?? data.flags?.[MODULE.ID]?.counters?.[key] ?? null;
-  }
-  return data.flags?.[MODULE.ID]?.[counterKey]?.value ?? data.flags?.[MODULE.ID]?.[counterKey] ?? null;
-}
-
-/* -------------------------------------------- */
-
-/**
- * Get the success or failure value of a success/failure counter.
- * @param {object} data The data
- * @param {string} counterKey The counter key
- * @param {string} property The property: "success" or "failure"
- * @returns {number|null} The value
- */
-export function getSuccessFailureValue(data, counterKey, property) {
-  if ( counterKey.startsWith("counters.") ) {
-    const key = counterKey.slice(9);
-    return data.flags?.[MODULE.ID]?.counters?.[key]?.[property] ?? null;
-  }
-  return data.flags?.[MODULE.ID]?.[counterKey]?.[property] ?? null;
-}
-
+/*  SHEET RENDERING                             */
 /* -------------------------------------------- */
 
 /**
  * Add counters to the sheet.
- * @param {object} app The app
- * @param {object} html The HTML
- * @param {object} data The data
+ * @param {ApplicationV2} app
+ * @param {HTMLElement} html
+ * @param {object} data
  */
 async function addCounters(app, html, data) {
   if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
@@ -276,7 +136,9 @@ async function addCounters(app, html, data) {
   if ( !sheetType ) return;
 
   const entity = sheetType.item ? app : app.actor;
-  const counters = mergeCounters(entity, sheetType.countersSetting);
+  const counters = (sheetType.character || sheetType.npc)
+    ? getActorSheetCounters(app.actor, sheetType.countersSetting)
+    : mergeCounters(entity, sheetType.countersSetting);
 
   if ( !data?.editable && checkEmpty(counters) ) return;
 
@@ -293,81 +155,96 @@ async function addCounters(app, html, data) {
 /* -------------------------------------------- */
 
 /**
- * Merge world and entity counters.
- * @param {object} entity The entity
- * @param {string} settingKey The setting key
- * @returns {object} The merged counters
+ * Set up counter interactions on the item sheet.
+ * @param {ApplicationV2} app
+ * @param {HTMLElement} html
+ * @param {object} data
  */
-export function mergeCounters(entity, settingKey) {
-  if ( entity.document ) entity = entity.document;
-  const worldCounters = game.settings.get(MODULE.ID, settingKey) ?? {};
-  const entityCounters = getFlag(entity, "counters") ?? {};
-  const actorType = entity.documentName === "Actor" ? entity.type : null;
-
-  return {
-    ...processCounters("world", worldCounters, entity, actorType),
-    ...processCounters("entity", entityCounters, entity, actorType)
-  };
+function addItemCounters(app, html, data) {
+  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
+  adjustItemSheetWidth(app, html);
+  const container = html.querySelector("#custom-dnd5e-counters");
+  if ( !container ) return;
+  const settingKey = CONSTANTS.COUNTERS.SETTING.ITEM_COUNTERS.KEY;
+  const counters = mergeCounters(app.document, settingKey);
+  setupCounterInteractions(app.document, counters, container, app.isEditable);
 }
 
 /* -------------------------------------------- */
 
 /**
- * Process counters.
- * @param {string} type The type
- * @param {object} counters The counters
- * @param {object} entity The entity
- * @param {string} actorType The actor type
- * @returns {object} The processed counters
+ * The number of tabs the item sheet's default width supports.
+ * @type {number}
  */
-function processCounters(type, counters, entity, actorType) {
-  return Object.entries(foundry.utils.deepClone(counters))
-    .filter(([_, counter]) => {
-      if ( !counter?.type || !counter.visible || game.user.role < (counter.viewRole ?? 1) ) return false;
-      if ( type === "world" && actorType && counter.actorTypes?.length ) {
-        if ( !counter.actorTypes.includes(actorType) ) return false;
-      }
-      return true;
-    })
-    .reduce((acc, [key, counter]) => {
-      const flagKey = `counters.${key}`;
-      counter.property = ["checkbox", "number", "pips"].includes(counter.type) ? `${flagKey}.value` : flagKey;
-      counter.canEdit = (!counter.editRole || game.user.role >= counter.editRole);
-      if ( ["checkbox", "number", "pips"].includes(counter.type) ) {
-        counter.value = entity.getFlag(MODULE.ID, counter.property) ?? 0;
-      }
-      if ( counter.type === "number" ) {
-        counter.max = resolveMax(entity, counter.max) ?? null;
-      }
-      if ( counter.type === "pips" ) {
-        counter.max = resolveMax(entity, counter.max) ?? entity.getFlag(MODULE.ID, `${flagKey}.max`) ?? 0;
-        counter.pips = Array.fromRange(counter.max, 1).map(n => ({
-          n,
-          filled: (counter.value ?? 0) >= n,
-          canEdit: counter.canEdit
-        }));
-      }
-      if ( counter.type === "fraction" ) {
-        counter.value = entity.getFlag(MODULE.ID, `${flagKey}.value`) ?? 0;
-        counter.canEditMax = (!counter.max && counter.canEdit);
-        counter.max = resolveMax(entity, counter.max) ?? entity.getFlag(MODULE.ID, `${flagKey}.max`) ?? 0;
-      }
-      if ( counter.type === "successFailure" ) {
-        counter.success = entity.getFlag(MODULE.ID, `${flagKey}.success`) ?? 0;
-        counter.failure = entity.getFlag(MODULE.ID, `${flagKey}.failure`) ?? 0;
-        counter.max = resolveMax(entity, counter.max) ?? null;
-      }
-      acc[flagKey] = counter;
-      return acc;
-    }, {});
+const ITEM_SHEET_BASE_TAB_COUNT = 5;
+
+/* -------------------------------------------- */
+
+/**
+ * Widen the item sheet when the Counters tab pushes the tab navigation beyond the number of
+ * tabs the default sheet width supports.
+ * @param {ApplicationV2} app
+ * @param {HTMLElement} html
+ */
+function adjustItemSheetWidth(app, html) {
+  if ( app.customDnd5eWidthAdjusted ) return;
+
+  const nav = html.querySelector("nav.sheet-tabs:not(.nested-tabs)");
+  if ( !nav ) return;
+
+  const base = app.options?.position?.width ?? 500;
+  const extra = nav.querySelectorAll("[data-tab]").length - ITEM_SHEET_BASE_TAB_COUNT;
+  if ( extra <= 0 ) return;
+
+  const width = base + (extra * Math.round(base / ITEM_SHEET_BASE_TAB_COUNT));
+  if ( (app.position?.width ?? base) < width ) {
+    app.customDnd5eWidthAdjusted = true;
+    app.setPosition({ width });
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Set up counter interactions on the group actor sheet.
+ * @param {ApplicationV2} app
+ * @param {HTMLElement} html
+ * @param {object} data
+ */
+function addGroupCounters(app, html, data) {
+  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
+  const container = html.querySelector("#custom-dnd5e-counters");
+  if ( !container ) return;
+  const settingKey = CONSTANTS.COUNTERS.SETTING.ACTOR_COUNTERS.KEY;
+  const counters = mergeCounters(app.document, settingKey);
+  setupCounterInteractions(app.document, counters, container, app.isEditable);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Prepare counter data for the counters sheet part.
+ * @param {ApplicationV2} sheet
+ * @param {string} partId
+ * @param {object} context
+ * @param {object} options
+ */
+function prepareCountersContext(sheet, partId, context, options) {
+  if ( partId !== "counters" ) return;
+  const docName = sheet.document?.documentName;
+  if ( docName === "Item" ) {
+    context.counters = mergeCounters(sheet.document, CONSTANTS.COUNTERS.SETTING.ITEM_COUNTERS.KEY);
+  } else if ( docName === "Actor" && sheet.document?.type === "group" ) {
+    context.counters = mergeCounters(sheet.document, CONSTANTS.COUNTERS.SETTING.ACTOR_COUNTERS.KEY);
+  }
 }
 
 /* -------------------------------------------- */
 
 /**
  * Render the counter tab for sheet with navigation tabs, e.g., items and groups.
- * @param {object} sheetType The sheet type
- * @param {object} html The HTML
+ * @param {object} sheetType
+ * @param {HTMLElement} html
  */
 function renderCountersTab(sheetType, html) {
   if ( sheetType.group || sheetType.item ) {
@@ -395,12 +272,12 @@ function renderCountersTab(sheetType, html) {
 
 /**
  * Insert counters template into the HTML.
- * @param {object} sheetType The sheet type
- * @param {object} counters The counters
- * @param {object} app The app
- * @param {object} html The HTML
- * @param {object} data The data
- * @returns {HTMLElement} The container element
+ * @param {object} sheetType
+ * @param {object} counters
+ * @param {ApplicationV2} app
+ * @param {HTMLElement} html
+ * @param {object} data
+ * @returns {HTMLElement} Container element
  */
 async function insertCounters(sheetType, counters, app, html, data) {
   const context = { editable: data.editable, counters };
@@ -419,12 +296,14 @@ async function insertCounters(sheetType, counters, app, html, data) {
 }
 
 /* -------------------------------------------- */
+/*  COUNTER INTERACTIONS                        */
+/* -------------------------------------------- */
 
 /**
  * Setup counter click and key interactions.
- * @param {object} entity The entity, e.g., actor, item
- * @param {object} counters The counters
- * @param {HTMLElement} container The container DOM element for the counters
+ * @param {Actor|Item} entity
+ * @param {object} counters
+ * @param {HTMLElement} container
  * @param {boolean} editable Whether the sheet is editable
  */
 export function setupCounterInteractions(entity, counters, container, editable) {
@@ -439,61 +318,99 @@ export function setupCounterInteractions(entity, counters, container, editable) 
   if ( entity.document ) entity = entity.document;
 
   Object.entries(counters).forEach(([key, counter]) => {
-    if ( !counter.canEdit ) return;
-
     const counterElement = container.querySelector(`[data-id="${key}"]`);
     if ( !counterElement ) return;
+
+    // Open the item sheet when the item icon is clicked
+    if ( counter.item ) {
+      counterElement.querySelector(".custom-dnd5e-counters-item-icon")
+        ?.addEventListener("click", () => counter.item.sheet.render(true));
+    }
+
+    if ( !counter.canEdit ) return;
+
+    const target = counter.item ?? entity;
     const links = counterElement.querySelectorAll(".custom-dnd5e-counters-link");
     const inputs = counterElement.querySelectorAll("input");
 
     switch (counter.type) {
       case "fraction":
-        links[0].addEventListener("click", () => increaseFraction(entity, counter.property));
-        links[0].addEventListener("contextmenu", () => decreaseFraction(entity, counter.property));
+        links[0].addEventListener("click", () => increaseFraction(target, counter.property));
+        links[0].addEventListener("contextmenu", () => decreaseFraction(target, counter.property));
         inputs.forEach(input => {
           input.addEventListener("click", selectInputContent);
           if ( input.dataset?.input === "value" ) {
-            input.addEventListener("keyup", () => checkValue(input, entity, counter.property), true);
+            input.addEventListener("keyup", () => checkValue(input, target, counter.property), true);
+            input.addEventListener("change", () => checkMinValue(input, target, counter.property));
           }
         });
         break;
       case "number":
-        links[0].addEventListener("click", () => { increaseNumber(entity, counter.property); });
-        links[0].addEventListener("contextmenu", () => decreaseNumber(entity, counter.property));
+        links[0].addEventListener("click", () => { increaseNumber(target, counter.property); });
+        links[0].addEventListener("contextmenu", () => decreaseNumber(target, counter.property));
         inputs.forEach(input => {
           input.addEventListener("click", selectInputContent);
           if ( input.dataset?.input === "value" ) {
-            input.addEventListener("keyup", () => checkValue(input, entity, key), true);
+            input.addEventListener("keyup", () => checkValue(input, target, counter.property), true);
+            input.addEventListener("change", () => checkMinValue(input, target, counter.property));
           }
         });
         break;
       case "pips":
         counterElement.querySelectorAll(".pip").forEach(pip => {
-          pip.addEventListener("click", () => togglePip(entity, counter.property, Number(pip.dataset.n)));
+          pip.addEventListener("click", () => togglePip(target, counter.property, Number(pip.dataset.n)));
         });
         break;
       case "successFailure":
         links.forEach(link => {
           if ( link.dataset?.input === "success" ) {
-            link.addEventListener("click", () => increaseSuccess(entity, counter.property));
-            link.addEventListener("contextmenu", () => decreaseSuccess(entity, counter.property));
+            link.addEventListener("click", () => increaseSuccess(target, counter.property));
+            link.addEventListener("contextmenu", () => decreaseSuccess(target, counter.property));
           } else if ( link.dataset?.input === "failure" ) {
-            link.addEventListener("click", () => increaseFailure(entity, counter.property));
-            link.addEventListener("contextmenu", () => decreaseFailure(entity, counter.property));
+            link.addEventListener("click", () => increaseFailure(target, counter.property));
+            link.addEventListener("contextmenu", () => decreaseFailure(target, counter.property));
           }
         });
         inputs.forEach(input => {
           input.addEventListener("click", selectInputContent);
         });
     }
+
+    // Item counter inputs are not part of the actor sheet's form, so persist changes to the item
+    if ( counter.item ) bindItemCounterInputs(counter.item, counter, counterElement);
   });
 }
 
 /* -------------------------------------------- */
 
 /**
+ * Persist input changes on an item counter displayed on the actor sheet directly to the item.
+ * @param {Item} item
+ * @param {object} counter
+ * @param {HTMLElement} counterElement
+ */
+function bindItemCounterInputs(item, counter, counterElement) {
+  const base = counter.property.endsWith(".value") ? counter.property.slice(0, -6) : counter.property;
+
+  counterElement.querySelectorAll("input[data-input]").forEach(input => {
+    input.addEventListener("change", () => {
+      item.setFlag(MODULE.ID, `${base}.${input.dataset.input}`, Number(input.value) || 0);
+    });
+  });
+
+  if ( counter.type === "checkbox" ) {
+    const checkbox = counterElement.querySelector("dnd5e-checkbox");
+    checkbox?.addEventListener("change", () => {
+      item.setFlag(MODULE.ID, `${base}.value`, checkbox.checked);
+    });
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
  * Open the entity counters form.
- * @param {object} entity The entity
+ * @param {Actor|Item} entity
  */
 export function openForm(entity) {
   const form = new CountersFormEntity(entity);
@@ -504,7 +421,7 @@ export function openForm(entity) {
 
 /**
  * Select content of an input element.
- * @param {object} event The event
+ * @param {Event} event
  */
 function selectInputContent(event) {
   const input = event.target;
@@ -516,24 +433,280 @@ function selectInputContent(event) {
 
 /**
  * Check input value against max.
- * @param {object} input The input element
- * @param {object} entity The entity: actor or item
- * @param {string} key The counter key
+ * @param {HTMLInputElement} input
+ * @param {Actor|Item} entity
+ * @param {string} key
  */
 function checkValue(input, entity, key) {
-  const max = Number(getMax(entity, key) ?? entity.getFlag(MODULE.ID, `${key}.max`));
+  const max = Number(getMaxValue(entity, key) ?? entity.getFlag(MODULE.ID, `${key}.max`));
   if ( max && Number(input.value) > max ) {
     input.value = max;
-    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterLimit"));
+    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterMax"));
   }
 }
 
 /* -------------------------------------------- */
 
 /**
+ * Check input value against min.
+ * @param {HTMLInputElement} input
+ * @param {Actor|Item} entity
+ * @param {string} key
+ */
+function checkMinValue(input, entity, key) {
+  const min = getMinValue(entity, key);
+  if ( min === null || input.value === "" || Number(input.value) >= min ) return;
+  input.value = min;
+  ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterMin"));
+}
+
+/* -------------------------------------------- */
+/*  PRE-UPDATE HANDLING                         */
+/* -------------------------------------------- */
+
+/**
+ * Handle actor pre-update triggers.
+ * @param {Actor} actor
+ * @param {object} data
+ * @param {object} options
+ * @param {string} userId
+ */
+function handlePreUpdateActor(actor, data, options, userId) {
+  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
+  if ( !actor.isOwner ) return;
+  clampCounterValues(actor, data);
+  captureOldCounterValues(actor, data, options);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Handle item pre-update triggers.
+ * @param {Item} item
+ * @param {object} data
+ * @param {object} options
+ * @param {string} userId
+ */
+function handlePreUpdateItem(item, data, options, userId) {
+  if ( !getSetting(constants.SETTING.COUNTERS.KEY) ) return;
+  if ( !item.isOwner ) return;
+  clampCounterValues(item, data);
+  captureOldCounterValues(item, data, options);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Keep updated counter within the counter's min and max.
+ * @param {Actor|Item} entity
+ * @param {object} data
+ */
+function clampCounterValues(entity, data) {
+  if ( !hasDataChanged(data) ) return;
+  const updates = data.flags[MODULE.ID].counters;
+  if ( foundry.utils.getType(updates) !== "Object" ) return;
+
+  for ( const [key, update] of Object.entries(updates) ) {
+    if ( foundry.utils.getType(update) !== "Object" ) continue;
+    const value = parseNumber(update.value);
+    if ( value === null ) continue;
+
+    const counter = getCounters(entity, key);
+    if ( !constants.TYPES.NUMERIC.includes(counter?.type) ) continue;
+
+    const min = constants.TYPES.WITH_MIN.includes(counter.type) ? resolveMin(entity, counter.min) : null;
+    const max = resolveMax(entity, counter.max)
+      ?? (Number(update.max ?? entity.getFlag(MODULE.ID, `counters.${key}.max`)) || null);
+
+    let clamped = value;
+    if ( max && clamped > max ) clamped = max;
+    if ( min !== null && clamped < min ) clamped = min;
+    if ( clamped !== value ) update.value = clamped;
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Capture old counter values.
+ * @param {Actor|Item} entity
+ * @param {object} data
+ * @param {object} options
+ */
+function captureOldCounterValues(entity, data, options) {
+  if ( !hasDataChanged(data) ) return;
+  const counters = getCounters(entity);
+  if ( !counters ) return;
+  const previousValues = {};
+  for ( const [counterKey, counter] of Object.entries(counters) ) {
+    if ( !constants.TYPES.NUMERIC.includes(counter.type) ) continue;
+    previousValues[counterKey] = counter.value ?? 0;
+  }
+  options.customDnd5ePreviousCounterValues = previousValues;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Whether the counter's value has changed.
+ * @param {object} data
+ * @returns {boolean}
+ */
+export function hasDataChanged(data) {
+  return Object.hasOwn(data, "flags")
+        && data.flags[MODULE.ID] && !Object.hasOwn(data.flags[MODULE.ID], "-=counters");
+}
+
+/* -------------------------------------------- */
+/*  COUNTER VALUE ACCESSORS                     */
+/* -------------------------------------------- */
+
+/**
+ * Get the current value of a counter.
+ * @param {object} data
+ * @param {string} counterKey
+ * @returns {number|null} Counter value
+ */
+export function getCounterValue(data, counterKey) {
+  if ( counterKey.startsWith("counters.") ) {
+    const key = counterKey.slice(9);
+    return data.flags?.[MODULE.ID]?.counters?.[key]?.value ?? data.flags?.[MODULE.ID]?.counters?.[key] ?? null;
+  }
+  return data.flags?.[MODULE.ID]?.[counterKey]?.value ?? data.flags?.[MODULE.ID]?.[counterKey] ?? null;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get the success or failure value of a success/failure counter.
+ * @param {object} data
+ * @param {string} counterKey
+ * @param {string} property "success" or "failure"
+ * @returns {number|null} Success or failure value
+ */
+export function getSuccessFailureValue(data, counterKey, property) {
+  if ( counterKey.startsWith("counters.") ) {
+    const key = counterKey.slice(9);
+    return data.flags?.[MODULE.ID]?.counters?.[key]?.[property] ?? null;
+  }
+  return data.flags?.[MODULE.ID]?.[counterKey]?.[property] ?? null;
+}
+
+/* -------------------------------------------- */
+/*  COUNTER PROCESSING                          */
+/* -------------------------------------------- */
+
+/**
+ * Get the counters to display on an actor sheet: the actor's own counters plus any counters
+ * on the actor's items that are set to display on the actor sheet.
+ * @param {Actor} actor
+ * @param {string} settingKey
+ * @returns {object} Counters
+ */
+export function getActorSheetCounters(actor, settingKey) {
+  if ( actor?.document ) actor = actor.document;
+  const counters = mergeCounters(actor, settingKey);
+  if ( !["character", "npc"].includes(actor?.type) ) return counters;
+
+  for ( const item of actor.items ) {
+    const itemCounters = mergeCounters(item, constants.SETTING.ITEM_COUNTERS.KEY);
+    for ( const [key, counter] of Object.entries(itemCounters) ) {
+      const display = counter.displayOnActorSheet ?? "never";
+      if ( display === "never" ) continue;
+      if ( display === "equipped" && !item.system.equipped ) continue;
+      counter.item = item;
+      counter.itemName = item.name;
+      counter.itemImg = item.img;
+      counter.isItemCounter = true;
+      counters[`item-${item.id}-${key}`] = counter;
+    }
+  }
+
+  return counters;
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Merge world and entity counters.
+ * @param {Actor|Item} entity
+ * @param {string} settingKey
+ * @returns {object} Merged counters
+ */
+export function mergeCounters(entity, settingKey) {
+  if ( entity.document ) entity = entity.document;
+  const worldCounters = game.settings.get(MODULE.ID, settingKey) ?? {};
+  const entityCounters = getFlag(entity, "counters") ?? {};
+  const actorType = entity.documentName === "Actor" ? entity.type : null;
+
+  return {
+    ...processCounters("world", worldCounters, entity, actorType),
+    ...processCounters("entity", entityCounters, entity, actorType)
+  };
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Process counters.
+ * @param {string} type
+ * @param {object} counters
+ * @param {Actor|Item} entity
+ * @param {string} actorType
+ * @returns {object} Processed counters
+ */
+function processCounters(type, counters, entity, actorType) {
+  return Object.entries(foundry.utils.deepClone(counters))
+    .filter(([_, counter]) => {
+      if ( !counter?.type || !counter.visible || game.user.role < (counter.viewRole ?? 1) ) return false;
+      if ( type === "world" && actorType && counter.actorTypes?.length ) {
+        if ( !counter.actorTypes.includes(actorType) ) return false;
+      }
+      return true;
+    })
+    .reduce((acc, [key, counter]) => {
+      const flagKey = `counters.${key}`;
+      counter.property = ["checkbox", "number", "pips"].includes(counter.type) ? `${flagKey}.value` : flagKey;
+      counter.canEdit = (!counter.editRole || game.user.role >= counter.editRole);
+      if ( counter.type === "checkbox" ) {
+        counter.value = entity.getFlag(MODULE.ID, counter.property) ?? 0;
+      }
+      if ( counter.type === "number" ) {
+        counter.max = resolveMax(entity, counter.max) ?? null;
+        counter.value = getNumericValue(entity, flagKey, counter);
+      }
+      if ( counter.type === "pips" ) {
+        counter.max = resolveMax(entity, counter.max) ?? entity.getFlag(MODULE.ID, `${flagKey}.max`) ?? 0;
+        counter.value = getNumericValue(entity, flagKey, counter);
+        counter.pips = Array.fromRange(counter.max, 1).map(n => ({
+          n,
+          filled: (counter.value ?? 0) >= n,
+          canEdit: counter.canEdit
+        }));
+      }
+      if ( counter.type === "fraction" ) {
+        counter.canEditMax = (!counter.max && counter.canEdit);
+        counter.max = resolveMax(entity, counter.max) ?? entity.getFlag(MODULE.ID, `${flagKey}.max`) ?? 0;
+        counter.value = getNumericValue(entity, flagKey, counter);
+      }
+      if ( counter.type === "successFailure" ) {
+        counter.success = entity.getFlag(MODULE.ID, `${flagKey}.success`) ?? 0;
+        counter.failure = entity.getFlag(MODULE.ID, `${flagKey}.failure`) ?? 0;
+        counter.max = resolveMax(entity, counter.max) ?? null;
+      }
+      acc[flagKey] = counter;
+      return acc;
+    }, {});
+}
+
+/* -------------------------------------------- */
+/*  CHECKBOX COUNTERS                           */
+/* -------------------------------------------- */
+
+/**
  * Check checkbox counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
  */
 export function checkCheckbox(entity, counterKey) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -545,8 +718,8 @@ export function checkCheckbox(entity, counterKey) {
 
 /**
  * Uncheck checkbox counter
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
  */
 export function uncheckCheckbox(entity, counterKey) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -558,8 +731,8 @@ export function uncheckCheckbox(entity, counterKey) {
 
 /**
  * Toggle checkbox counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
  */
 export function toggleCheckbox(entity, counterKey) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -569,48 +742,35 @@ export function toggleCheckbox(entity, counterKey) {
 }
 
 /* -------------------------------------------- */
+/*  PIP COUNTERS                                */
+/* -------------------------------------------- */
 
 /**
  * Toggle a pip on a pips counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} n The pip number to toggle
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} n Pip number to toggle
  */
 export function togglePip(entity, counterKey, n) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
-  const baseKey = counterKey;
+  const baseKey = counterKey.endsWith(".value") ? counterKey.slice(0, -6) : counterKey;
   if ( !counterKey.endsWith(".value") ) counterKey = `${counterKey}.value`;
-  const currentValue = entity.getFlag(MODULE.ID, counterKey) ?? 0;
-  const max = getMax(entity, baseKey);
+  const currentValue = getNumericValue(entity, baseKey, getCounters(entity, baseKey));
+  const max = getMaxValue(entity, baseKey);
   const newValue = (currentValue === n) ? n - 1 : n;
   if ( max && newValue > max ) return;
   entity.setFlag(MODULE.ID, counterKey, newValue);
 }
 
 /* -------------------------------------------- */
-
-/**
- * Decrease fraction counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
- */
-export function decreaseFraction(entity, counterKey, actionValue = 1) {
-  if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
-  const oldValue = entity.getFlag(MODULE.ID, `${counterKey}.value`) ?? 0;
-  const newValue = Math.max(oldValue - actionValue, 0);
-  if ( oldValue > 0 ) {
-    entity.setFlag(MODULE.ID, `${counterKey}.value`, newValue);
-  }
-}
-
+/*  FRACTION COUNTERS                           */
 /* -------------------------------------------- */
 
 /**
  * Increase fraction counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function increaseFraction(entity, counterKey, actionValue = 1) {
   modifyFraction(entity, counterKey, actionValue);
@@ -619,10 +779,32 @@ export function increaseFraction(entity, counterKey, actionValue = 1) {
 /* -------------------------------------------- */
 
 /**
+ * Decrease fraction counter.
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
+ */
+export function decreaseFraction(entity, counterKey, actionValue = 1) {
+  if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
+  const minValue = getMinValue(entity, counterKey);
+  const lowest = minValue ?? 0;
+  const oldValue = getNumericValue(entity, counterKey, getCounters(entity, counterKey));
+  const newValue = Math.max(oldValue - actionValue, lowest);
+  if ( oldValue > lowest ) {
+    entity.setFlag(MODULE.ID, `${counterKey}.value`, newValue);
+  }
+  if ( minValue !== null && (oldValue - actionValue) < minValue ) {
+    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterMin"));
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
  * Set fraction counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function setFraction(entity, counterKey, actionValue = 0) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -633,51 +815,37 @@ export function setFraction(entity, counterKey, actionValue = 0) {
 
 /**
  * Modify fraction counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function modifyFraction(entity, counterKey, actionValue = 1) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
-  const oldValue = entity.getFlag(MODULE.ID, `${counterKey}.value`) ?? 0;
-  const maxValue = getMax(entity, counterKey) ?? entity.getFlag(MODULE.ID, `${counterKey}.max`);
+  const minValue = getMinValue(entity, counterKey) ?? 0;
+  const oldValue = getNumericValue(entity, counterKey, getCounters(entity, counterKey));
+  const maxValue = getMaxValue(entity, counterKey) ?? entity.getFlag(MODULE.ID, `${counterKey}.max`);
   const newValue = oldValue + actionValue;
 
-  if ( newValue >= 0 && (!maxValue || newValue <= maxValue) ) {
+  if ( newValue >= minValue && (!maxValue || newValue <= maxValue) ) {
     entity.setFlag(MODULE.ID, `${counterKey}.value`, newValue);
   } else {
-    if ( newValue >= 0 && oldValue < maxValue ) {
+    if ( newValue >= minValue && oldValue < maxValue ) {
       entity.setFlag(MODULE.ID, `${counterKey}.value`, maxValue);
     }
-    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterLimit"));
+    const message = (newValue < minValue) ? "reachedCounterMin" : "reachedCounterMax";
+    ui.notifications.info(game.i18n.localize(`CUSTOM_DND5E.${message}`));
   }
 }
 
 /* -------------------------------------------- */
-
-/**
- * Decrease number counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
- */
-export function decreaseNumber(entity, counterKey, actionValue = 1) {
-  if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
-  if ( !counterKey.endsWith(".value") ) counterKey = `${counterKey}.value`;
-  const oldValue = entity.getFlag(MODULE.ID, counterKey) ?? 0;
-  const newValue = Math.max(oldValue - actionValue, 0);
-  if ( oldValue > 0 ) {
-    entity.setFlag(MODULE.ID, counterKey, newValue);
-  }
-}
-
+/*  NUMBER COUNTERS                             */
 /* -------------------------------------------- */
 
 /**
  * Increase number counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function increaseNumber(entity, counterKey, actionValue = 1) {
   modifyNumber(entity, counterKey, actionValue);
@@ -686,10 +854,34 @@ export function increaseNumber(entity, counterKey, actionValue = 1) {
 /* -------------------------------------------- */
 
 /**
+ * Decrease number counter.
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
+ */
+export function decreaseNumber(entity, counterKey, actionValue = 1) {
+  if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
+  const baseKey = counterKey.endsWith(".value") ? counterKey.slice(0, -6) : counterKey;
+  if ( !counterKey.endsWith(".value") ) counterKey = `${counterKey}.value`;
+  const minValue = getMinValue(entity, baseKey);
+  const lowest = minValue ?? 0;
+  const oldValue = getNumericValue(entity, baseKey, getCounters(entity, baseKey));
+  const newValue = Math.max(oldValue - actionValue, lowest);
+  if ( oldValue > lowest ) {
+    entity.setFlag(MODULE.ID, counterKey, newValue);
+  }
+  if ( minValue !== null && (oldValue - actionValue) < minValue ) {
+    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterMin"));
+  }
+}
+
+/* -------------------------------------------- */
+
+/**
  * Set number counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function setNumber(entity, counterKey, actionValue = 0) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -701,35 +893,51 @@ export function setNumber(entity, counterKey, actionValue = 0) {
 
 /**
  * Modify number counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function modifyNumber(entity, counterKey, actionValue = 1) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
   const baseKey = counterKey.endsWith(".value") ? counterKey.slice(0, -6) : counterKey;
   if ( !counterKey.endsWith(".value") ) counterKey = `${counterKey}.value`;
-  const oldValue = entity.getFlag(MODULE.ID, counterKey) ?? 0;
-  const maxValue = getMax(entity, baseKey) ?? entity.getFlag(MODULE.ID, `${baseKey}.max`);
+  const minValue = getMinValue(entity, baseKey) ?? 0;
+  const oldValue = getNumericValue(entity, baseKey, getCounters(entity, baseKey));
+  const maxValue = getMaxValue(entity, baseKey) ?? entity.getFlag(MODULE.ID, `${baseKey}.max`);
   const newValue = oldValue + actionValue;
 
-  if ( newValue >= 0 && (!maxValue || newValue <= maxValue) ) {
+  if ( newValue >= minValue && (!maxValue || newValue <= maxValue) ) {
     entity.setFlag(MODULE.ID, counterKey, newValue);
   } else {
-    if ( newValue >= 0 && oldValue < maxValue ) {
+    if ( newValue >= minValue && oldValue < maxValue ) {
       entity.setFlag(MODULE.ID, counterKey, maxValue);
     }
-    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterLimit"));
+    const message = (newValue < minValue) ? "reachedCounterMin" : "reachedCounterMax";
+    ui.notifications.info(game.i18n.localize(`CUSTOM_DND5E.${message}`));
   }
+}
+
+/* -------------------------------------------- */
+/*  SUCCESS/FAILURE COUNTERS                    */
+/* -------------------------------------------- */
+
+/**
+ * Increase success on success/failure counter.
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
+ */
+export function increaseSuccess(entity, counterKey, actionValue = 1) {
+  modifySuccess(entity, counterKey, actionValue);
 }
 
 /* -------------------------------------------- */
 
 /**
  * Decrease success on success/failure counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function decreaseSuccess(entity, counterKey, actionValue = 1) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -743,27 +951,15 @@ export function decreaseSuccess(entity, counterKey, actionValue = 1) {
 /* -------------------------------------------- */
 
 /**
- * Increase success on success/failure counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
- */
-export function increaseSuccess(entity, counterKey, actionValue = 1) {
-  modifySuccess(entity, counterKey, actionValue);
-}
-
-/* -------------------------------------------- */
-
-/**
  * Modify success on success/failure counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function modifySuccess(entity, counterKey, actionValue = 1) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
   const oldValue = entity.getFlag(MODULE.ID, `${counterKey}.success`) ?? 0;
-  const maxValue = getMax(entity, counterKey) ?? entity.getFlag(MODULE.ID, `${counterKey}.max`);
+  const maxValue = getMaxValue(entity, counterKey) ?? entity.getFlag(MODULE.ID, `${counterKey}.max`);
   const newValue = (maxValue) ? Math.min(oldValue + actionValue, maxValue) : oldValue + actionValue;
 
   if ( newValue >= 0 && (!maxValue || newValue <= maxValue) ) {
@@ -772,17 +968,29 @@ export function modifySuccess(entity, counterKey, actionValue = 1) {
     if ( newValue >= 0 && oldValue < maxValue ) {
       entity.setFlag(MODULE.ID, `${counterKey}.success`, maxValue);
     }
-    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterLimit"));
+    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterMax"));
   }
 }
 
 /* -------------------------------------------- */
 
 /**
+ * Increase failure on success/failure counter.
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
+ */
+export function increaseFailure(entity, counterKey, actionValue = 1) {
+  modifyFailure(entity, counterKey, actionValue);
+}
+
+/* -------------------------------------------- */
+
+/**
  * Decrease failure on success/failure counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function decreaseFailure(entity, counterKey, actionValue = 1) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
@@ -796,27 +1004,15 @@ export function decreaseFailure(entity, counterKey, actionValue = 1) {
 /* -------------------------------------------- */
 
 /**
- * Increase failure on success/failure counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
- */
-export function increaseFailure(entity, counterKey, actionValue = 1) {
-  modifyFailure(entity, counterKey, actionValue);
-}
-
-/* -------------------------------------------- */
-
-/**
  * Modify failure on success/failure counter.
- * @param {object} entity The entity: actor or item
- * @param {string} counterKey The counter key
- * @param {number} actionValue The action value
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ * @param {number} actionValue
  */
 export function modifyFailure(entity, counterKey, actionValue = 1) {
   if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
   const oldValue = entity.getFlag(MODULE.ID, `${counterKey}.failure`) ?? 0;
-  const maxValue = getMax(entity, counterKey) || entity.getFlag(MODULE.ID, `${counterKey}.max`);
+  const maxValue = getMaxValue(entity, counterKey) || entity.getFlag(MODULE.ID, `${counterKey}.max`);
   const newValue = (maxValue) ? Math.min(oldValue + actionValue, maxValue) : oldValue + actionValue;
 
   if ( newValue >= 0 && (!maxValue || newValue <= maxValue) ) {
@@ -825,19 +1021,48 @@ export function modifyFailure(entity, counterKey, actionValue = 1) {
     if ( newValue >= 0 && oldValue < maxValue ) {
       entity.setFlag(MODULE.ID, `${counterKey}.failure`, maxValue);
     }
-    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterLimit"));
+    ui.notifications.info(game.i18n.localize("CUSTOM_DND5E.reachedCounterMax"));
   }
 }
 
 /* -------------------------------------------- */
+/*  RESET                                       */
+/* -------------------------------------------- */
+
+/**
+ * Reset a counter to its starting value.
+ * @param {Actor|Item} entity
+ * @param {string} counterKey
+ */
+export function resetCounter(entity, counterKey) {
+  if ( !counterKey.startsWith("counters.") ) counterKey = `counters.${counterKey}`;
+  if ( counterKey.endsWith(".value") ) counterKey = counterKey.slice(0, -6);
+  const counter = getCounters(entity, counterKey);
+  if ( !counter ) return;
+
+  switch (counter.type) {
+    case "checkbox":
+      entity.setFlag(MODULE.ID, `${counterKey}.value`, false);
+      break;
+    case "successFailure":
+      entity.setFlag(MODULE.ID, counterKey, { success: 0, failure: 0 });
+      break;
+    default:
+      entity.setFlag(MODULE.ID, `${counterKey}.value`, getStartValue(entity, counterKey) ?? 0);
+  }
+}
+
+/* -------------------------------------------- */
+/*  MIN, MAX & VALUE RESOLUTION                 */
+/* -------------------------------------------- */
 
 /**
  * Get counter setting by the entity.
- * @param {object} entity The entity: actor or item
- * @param {string} key The counter key
- * @returns {object} The counter setting
+ * @param {Actor|Item} entity
+ * @param {string} key
+ * @returns {object} Counter setting
  */
-function getCounters(entity, key = null) {
+export function getCounters(entity, key = null) {
   const type = (entity.documentName === "Actor") ? entity.type : "item";
   const settingKey = SETTING_BY_ENTITY_TYPE.COUNTERS[type];
 
@@ -860,16 +1085,33 @@ function getCounters(entity, key = null) {
 /* -------------------------------------------- */
 
 /**
- * Resolve a trigger value, handling attribute paths (e.g. @abilities.str.mod).
- * @param {object} entity The entity: actor or item
- * @param {number|string} value The trigger value or attribute path
- * @returns {number|null} The resolved trigger value
+ * Get the counter's current value.
+ * @param {Actor|Item} entity
+ * @param {string} key
+ * @returns {number|boolean|null} Current value
  */
-export function resolveTriggerValue(entity, value) {
-  if ( typeof value === "string" && value.startsWith("@") ) {
-    return foundry.utils.getProperty(entity.system, value.substring(1)) ?? null;
-  }
-  return value;
+export function getCurrentValue(entity, key) {
+  if ( entity.document ) entity = entity.document;
+  if ( !key.startsWith("counters.") ) key = `counters.${key}`;
+  if ( !key.endsWith(".value") ) key = `${key}.value`;
+  const stored = entity.getFlag(MODULE.ID, key);
+  if ( stored !== undefined && stored !== null ) return stored;
+  const baseKey = key.slice(0, -6);
+  if ( getStartValue(entity, baseKey) === null ) return null;
+  return getNumericValue(entity, baseKey, getCounters(entity, baseKey));
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get the counter's max value.
+ * @param {Actor|Item} entity
+ * @param {string} key
+ * @returns {number|null} Max value
+ */
+function getMaxValue(entity, key) {
+  const setting = getCounters(entity, key);
+  return resolveMax(entity, setting?.max);
 }
 
 /* -------------------------------------------- */
@@ -877,9 +1119,9 @@ export function resolveTriggerValue(entity, value) {
 /**
  * Resolve a max value, handling attribute paths (e.g. @scale.monk.ki-points)
  * and calculations (e.g. @abilities.str.value / 2).
- * @param {object} entity The entity: actor or item
- * @param {number|string} max The max value or attribute path
- * @returns {number|null} The resolved max value
+ * @param {Actor|Item} entity
+ * @param {number|string} max Max value or attribute path
+ * @returns {number|null} Resolved max value
  */
 function resolveMax(entity, max) {
   return resolveFormula(entity, max);
@@ -888,31 +1130,128 @@ function resolveMax(entity, max) {
 /* -------------------------------------------- */
 
 /**
- * Get the counter's max value.
- * @param {object} entity The entity: actor or item
- * @param {string} key The counter key
- * @returns {number|null} The max value
+ * Get the minimum value set for a fraction or number counter.
+ * @param {Actor|Item} entity
+ * @param {string} key
+ * @returns {number|null} Min value
  */
-function getMax(entity, key) {
+function getMinValue(entity, key) {
   const setting = getCounters(entity, key);
-  return resolveMax(entity, setting?.max);
+  if ( !constants.TYPES.WITH_MIN.includes(setting?.type) ) return null;
+  return resolveMin(entity, setting?.min);
 }
 
 /* -------------------------------------------- */
 
+/**
+ * Resolve a min value.
+ * @param {Actor|Item} entity
+ * @param {number|string} min Number, attribute path or calculation
+ * @returns {number|null} Resolved min value
+ */
+function resolveMin(entity, min) {
+  if ( min === undefined || min === null || min === "" ) return null;
+  return resolveFormula(entity, min);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get the starting value set for a fraction, number or pips counter.
+ * @param {Actor|Item} entity
+ * @param {string} key
+ * @returns {number|null} Starting value
+ */
+function getStartValue(entity, key) {
+  const setting = getCounters(entity, key);
+  if ( !constants.TYPES.WITH_START.includes(setting?.type) ) return null;
+  return resolveStart(entity, setting?.start);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Resolve a starting value.
+ * @param {Actor|Item} entity
+ * @param {number|string} start Number, attribute path or calculation
+ * @returns {number|null} Resolved starting value
+ */
+function resolveStart(entity, start) {
+  if ( start === undefined || start === null || start === "" ) return null;
+  return resolveFormula(entity, start);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Get a counter's value.
+ * @param {Actor|Item} entity
+ * @param {string} flagKey
+ * @param {object} counter
+ * @returns {number} Counter value
+ */
+function getNumericValue(entity, flagKey, counter) {
+  let value = entity.getFlag(MODULE.ID, `${flagKey}.value`);
+  if ( value === undefined || value === null ) {
+    value = resolveStart(entity, counter?.start) ?? 0;
+    const max = resolveMax(entity, counter?.max) ?? entity.getFlag(MODULE.ID, `${flagKey}.max`);
+    if ( max ) value = Math.min(value, max);
+  }
+  const min = constants.TYPES.WITH_MIN.includes(counter?.type) ? resolveMin(entity, counter.min) : null;
+  return (min === null) ? value : Math.max(value, min);
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Resolve a trigger value.
+ * @param {Actor|Item} entity
+ * @param {number|string} value Number, attribute path or calculation
+ * @returns {number|null} Resolved trigger value
+ */
+export function resolveTriggerValue(entity, value) {
+  if ( typeof value !== "string" || !value.includes("@") ) return value;
+  if ( !entity ) return null;
+
+  if ( /^@[-.\w]+$/.test(value) ) {
+    const systemValue = foundry.utils.getProperty(entity.system, value.substring(1));
+    if ( systemValue !== undefined && systemValue !== null ) return systemValue;
+  }
+
+  return resolveFormula(entity, value);
+}
+
+/* -------------------------------------------- */
+/*  PUBLIC API                                  */
+/* -------------------------------------------- */
+
 export const counters = {
-  mergeCounters,
+  // Checkbox
   checkCheckbox,
   uncheckCheckbox,
+  toggleCheckbox,
+  // Pips
+  togglePip,
+  // Fraction
   increaseFraction,
   decreaseFraction,
+  modifyFraction,
   setFraction,
+  // Number
   increaseNumber,
   decreaseNumber,
+  modifyNumber,
   setNumber,
-  hasDataChanged,
-  getCounterValue,
-  getCounters,
+  // Success/failure
+  increaseSuccess,
+  decreaseSuccess,
+  modifySuccess,
+  increaseFailure,
+  decreaseFailure,
+  modifyFailure,
+  resetCounter,
+  // Read helpers
+  getCurrentValue,
   getSuccessFailureValue,
-  resolveTriggerValue
+  getMaxValue
 };

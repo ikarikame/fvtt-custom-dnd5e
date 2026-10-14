@@ -1,34 +1,87 @@
-import { CONSTANTS } from "../constants.js";
 import {
-  c5eLoadTemplates,
   checkEmpty,
-  getDefaultDnd5eConfig,
   getSetting,
   registerMenu,
   registerSetting,
   resetDnd5eConfig,
   resetSetting } from "../utils.js";
-import { ToolProficienciesForm } from "../forms/tool-proficiencies-form.js";
+import { MODULE } from "../constants.js";
+import { ConfigForm } from "../forms/config-form.js";
+import { configs } from "./registry.js";
 
-const constants = CONSTANTS.TOOL_PROFICIENCIES;
+/* -------------------------------------------- */
+/*  CONSTANTS                                   */
+/* -------------------------------------------- */
+
+export const constants = {
+  MENU: {
+    KEY: "tool-proficiencies-menu",
+    HINT: "CUSTOM_DND5E.menu.toolProficiencies.hint",
+    ICON: "fas fa-hammer-brush",
+    LABEL: "CUSTOM_DND5E.menu.toolProficiencies.label",
+    NAME: "CUSTOM_DND5E.menu.toolProficiencies.name"
+  },
+  SETTING: {
+    ENABLE: {
+      KEY: "enable-tool-proficiencies"
+    },
+    CONFIG: {
+      KEY: "tool-proficiencies"
+    }
+  },
+  UUID: "Compendium.custom-dnd5e.custom-dnd5e-journals.JournalEntry.B48iqFBddUikMMer.JournalEntryPage.Ls4Rn45UNhTBagHD"
+};
+
+export const configKeys = ["toolProficiencies", "toolTypes"];
+
+/* -------------------------------------------- */
+/*  FORM CLASS                                  */
+/* -------------------------------------------- */
 
 /**
- * Register settings and load templates.
+ * Tool proficiencies settings menu form.
+ * @extends ConfigForm
+ */
+class ToolProficienciesForm extends ConfigForm {
+  /**
+   * Constructor for ToolProficienciesForm.
+   * @param {...any} args
+   */
+  constructor(...args) {
+    super(args);
+    this.editInList = true;
+    this.nestable = true;
+    this.config = configs.toolProficiencies;
+    this.settingDefault = this.config.getSettingDefault();
+    this.setting = getSetting(this.settingKey) || this.settingDefault;
+    this.listTitle = "CUSTOM_DND5E.form.toolProficiencies.listTitle";
+  }
+
+  /* -------------------------------------------- */
+
+  static DEFAULT_OPTIONS = {
+    id: `${MODULE.ID}-tool-proficiencies-form`,
+    window: {
+      title: "CUSTOM_DND5E.form.toolProficiencies.title"
+    }
+  };
+}
+
+/* -------------------------------------------- */
+/*  REGISTRATION                                */
+/* -------------------------------------------- */
+
+/**
+ * Register settings.
  */
 export function register() {
   registerSettings();
-
-  const templates = [
-    constants.TEMPLATE.FORM,
-    constants.TEMPLATE.LIST
-  ];
-  c5eLoadTemplates(templates);
 }
 
 /* -------------------------------------------- */
 
 /**
- * Register settings.
+ * Register menu and settings.
  */
 function registerSettings() {
   registerMenu(
@@ -67,10 +120,12 @@ function registerSettings() {
 }
 
 /* -------------------------------------------- */
+/*  CONFIG                                      */
+/* -------------------------------------------- */
 
 /**
- * Get setting default
- * @returns {object} The setting
+ * Get setting default.
+ * @returns {object} Default setting data
  */
 export function getSettingDefault() {
   return buildData(CONFIG.CUSTOM_DND5E);
@@ -90,9 +145,9 @@ export async function resetConfigSetting() {
 /* -------------------------------------------- */
 
 /**
- * Build setting data
- * @param {object} config The config data
- * @returns {object} The setting data
+ * Build setting data.
+ * @param {object} config Config data
+ * @returns {object} Setting data
  */
 function buildData(config) {
   const data = {};
@@ -118,12 +173,13 @@ function buildData(config) {
 /* -------------------------------------------- */
 
 /**
- * Set CONFIG.DND5E.toolProficiencies and CONFIG.DND5E.toolTypes
- * @param {object} settingData The data
+ * Set CONFIG.DND5E.toolProficiencies and CONFIG.DND5E.toolTypes.
+ * @param {object} settingData
  * @returns {void}
  */
-export function setConfig(settingData = null) {
+export function setConfig(settingData) {
   if ( !getSetting(constants.SETTING.ENABLE.KEY) ) return;
+  settingData ??= getSetting(constants.SETTING.CONFIG.KEY);
   const properties = ["toolProficiencies", "toolTypes"];
   if ( checkEmpty(settingData) ) return handleEmptyData(properties);
 
@@ -133,7 +189,6 @@ export function setConfig(settingData = null) {
     toolTypes: {}
   };
 
-  // Populate config
   Object.entries(settingData)
     .filter(([_, value]) => value.visible || value.visible === undefined)
     .forEach(([key, value]) => {
@@ -148,7 +203,6 @@ export function setConfig(settingData = null) {
       }
     });
 
-  // Apply the config to CONFIG.DND5E
   properties.forEach(property => {
     const hookLabel = property.charAt(0).toUpperCase() + property.slice(1);
     Hooks.callAll(`customDnd5e.set${hookLabel}Config`, config[property]);
@@ -163,7 +217,7 @@ export function setConfig(settingData = null) {
 
 /**
  * Handle empty data.
- * @param {string[]} properties The properties
+ * @param {string[]} properties
  */
 function handleEmptyData(properties) {
   properties.forEach(property => {

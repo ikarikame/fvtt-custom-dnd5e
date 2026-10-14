@@ -1,85 +1,51 @@
 import { CONSTANTS, MODULE } from "./constants.js";
-import { animations, c5eLoadTemplates, getSetting, registerSetting } from "./utils.js";
+import { c5eLoadTemplates, getModuleMarker, getSetting, registerSetting, syncAutoApplyDowned } from "./utils.js";
+import { animations } from "./animations.js";
+import { configs, getConfigKeys } from "./configurations/registry.js";
 import { register as registerGameplay, registerNegativeHp } from "./gameplay/gameplay.js";
-import { register as registerAbilities, setConfig as setAbilities } from "./configurations/abilities.js";
-import { register as registerActivationCosts, setConfig as setActivationCosts } from "./configurations/activation-costs.js";
+
+import { register as registerSpeedFactorInitiative } from "./gameplay/speed-factor-initiative.js";
 import { register as registerActivities } from "./activities/activities.js";
 import { registerSockets } from "./sockets.js";
+import { registerQueries } from "./queries.js";
 import { register as registerActorSheet } from "./actor-sheet.js";
 import { register as registerActorSheetTidy5e } from "./actor-sheet-tidy5e.js";
-import { register as registerActorSizes, setConfig as setActorSizes } from "./configurations/actor-sizes.js";
-import { register as registerArmorCalculations, setConfig as setArmorCalculations } from "./configurations/armor-calculations.js";
-import { register as registerArmorIds, setConfig as setArmorIds } from "./configurations/armor-ids.js";
-import { register as registerArmorProficiencies, setConfig as setArmorProficiencies } from "./configurations/armor-proficiencies.js";
-import { register as registerBastions, setConfig as setBastions } from "./configurations/bastions.js";
-import { register as registerBloodied, setConfig as setBloodied, addBloodiedCondition } from "./configurations/bloodied.js";
-import { register as registerCalendar } from "./configurations/calendar.js";
 import { register as registerCampSupplies } from "./gameplay/camp-supplies.js";
 import { register as registerConditionLevels } from "./token/condition-levels.js";
-import { register as registerConditions, registerMenu as registerConditionsMenu, setConfig as setConditions } from "./configurations/conditions.js";
-import { register as registerConsumableTypes, setConfig as setConsumableTypes } from "./configurations/consumable-types.js";
-import {
-  register as registerCounters,
-  checkCheckbox,
-  uncheckCheckbox,
-  toggleCheckbox,
-  increaseFraction,
-  decreaseFraction,
-  modifyFraction,
-  setFraction,
-  increaseNumber,
-  decreaseNumber,
-  modifyNumber,
-  setNumber,
-  increaseSuccess,
-  decreaseSuccess,
-  modifySuccess,
-  increaseFailure,
-  decreaseFailure,
-  modifyFailure,
-  togglePip
-} from "./counters/counters.js";
-import { register as registerCreatureTypes, setConfig as setCreatureTypes } from "./configurations/creature-types.js";
-import { register as registerCurrency, setConfig as setCurrency } from "./configurations/currency.js";
-import { register as registerDamageTypes, setConfig as setDamageTypes } from "./configurations/damage-types.js";
+import { register as registerCounters, counters } from "./counters/counters.js";
 import { register as registerDebug } from "./debug.js";
-import { register as registerEncumbrance, setConfig as setEncumbrance } from "./configurations/encumbrance.js";
-import { register as registerEquipmentTypes, setConfig as setEquipmentTypes } from "./configurations/misc-equipment-types.js";
+import { register as registerDetachedSheets } from "./detached-sheets.js";
 import { register as registerExhaustion } from "./gameplay/exhaustion.js";
-import { register as registerFeatureTypes, setConfig as setFeatureTypes } from "./configurations/feature-types.js";
-import { register as registerItemActionTypes, setConfig as setItemActionTypes } from "./configurations/item-action-types.js";
-import { register as registerItemActivationCostTypes, setConfig as setItemActivationCostTypes } from "./configurations/item-activation-cost-types.js";
-import { register as registerItemProperties, setConfig as setItemProperties } from "./configurations/item-properties.js";
-import { register as registerItemRarity, setConfig as setItemRarity } from "./configurations/item-rarity.js";
+import { register as registerGiveItems } from "./item-interactions/give-items.js";
+import { register as registerDropItems } from "./item-interactions/drop-items.js";
+import { register as registerInventoryDrag } from "./item-interactions/inventory-drag.js";
+import { ItemActorDataModel } from "./documents/item-actor.js";
+import { registerItemActorSheet } from "./sheets/item-actor-sheet.js";
+import { registerItemTokenHUD } from "./applications/item-token-hud.js";
 import { register as registerItemSheet } from "./item-sheet.js";
-import { register as registerLanguages, setConfig as setLanguages } from "./configurations/languages.js";
-import { register as registerLootTypes, setConfig as setLootTypes } from "./configurations/loot-types.js";
 import { register as registerMigration, migrate, migrations } from "./migration.js";
-import { register as registerMisc, setMaxLevel } from "./misc.js";
-import { register as registerRestTypes, setConfig as setRestTypes } from "./configurations/rest-types.js";
+import { register as registerInterface } from "./interface.js";
+import { register as registerItemInteractions } from "./item-interactions.js";
+import { register as registerMisc, setEquipmentTypes, setMaxLevel } from "./misc.js";
+import { register as registerProficiencyBonus } from "./gameplay/proficiency-bonus.js";
 import { register as registerRolls } from "./rolls.js";
-import { register as registerSenses, setConfig as setSenses } from "./configurations/senses.js";
-import { register as registerSkills, setConfig as setSkills } from "./configurations/skills.js";
-import { register as registerSpellSchools, setConfig as setSpellSchools } from "./configurations/spell-schools.js";
 import { register as registerRadialStatusEffects } from "./token/radial-status-effects.js";
-import { register as registerRulerTravelTime } from "./ruler-travel-time.js";
+import { register as registerRulerTravelTime } from "./interface/ruler-travel-time.js";
 import { register as registerTidy5eCounters } from "./counters/counters-tidy5e.js";
 import { register as registerWorkflows, workflows } from "./workflows/workflows.js";
 import { register as registerWorkflowsTidy5e } from "./workflows/workflows-tidy5e.js";
 import { register as registerTokenBorder } from "./token/token-border.js";
+import { register as registerTokenDistance } from "./interface/token-distance.js";
 import { register as registerTokenEffects } from "./token/token-effects.js";
 import { register as registerTokenHudImprovements } from "./token/token-hud-improvements.js";
-import { register as registerTools, setConfig as setTools } from "./configurations/tools.js";
-import { register as registerToolProficiencies, setConfig as setToolProficiencies } from "./configurations/tool-proficiencies.js";
-import { register as registerWeaponIds, setConfig as setWeaponIds } from "./configurations/weapon-ids.js";
-import { register as registerWeaponMasteries, setConfig as setWeaponMasteries } from "./configurations/weapon-masteries.js";
-import { register as registerWeaponProficiencies, setConfig as setWeaponProficiencies } from "./configurations/weapon-proficiencies.js";
 import { patchD20Die } from "./patches/d20-die.js";
 import { patchD20Roll } from "./patches/d20-roll.js";
+import { patchInitiativeRoll } from "./patches/initiative-roll.js";
+import { patchPrepareBaseData } from "./patches/prepare-base-data.js";
 import { patchPrepareEncumbrance } from "./patches/prepare-encumbrance.js";
 import { patchPrepareMovement } from "./patches/prepare-movement.js";
+import { patchPrepareDerivedData } from "./patches/prepare-derived-data.js";
 import { patchPrepareMovementAttribution } from "./patches/prepare-movement-attribution.js";
-import { patchPrepareSenses } from "./patches/prepare-senses.js";
 import { patchPrepareSkillsTools } from "./patches/prepare-skills-tools.js";
 import { registerCharacterSheet } from "./sheets/character-sheet.js";
 
@@ -88,18 +54,7 @@ import { registerCharacterSheet } from "./sheets/character-sheet.js";
  */
 function cloneDnd5eConfig() {
   CONFIG.CUSTOM_DND5E = {};
-  const propertiesToClone = [
-    "abilities", "abilityActivationTypes", "activityActivationTypes", "actorSizes",
-    "armorClasses", "armorIds", "armorProficiencies", "armorProficienciesMap", "armorTypes",
-    "bloodied", "conditionTypes", "consumableTypes", "creatureTypes", "currencies",
-    "damageTypes", "encumbrance", "facilities", "featureTypes",
-    "itemActionTypes", "itemProperties", "itemRarity", "languages", "lootTypes",
-    "maxAbilityScore", "maxLevel", "miscEquipmentTypes", "restTypes", "senses", "skills",
-    "spellSchools", "toolProficiencies", "tools", "toolTypes",
-    "validProperties", "weaponIds", "weaponMasteries", "weaponProficiencies",
-    "weaponProficienciesMap", "weaponProperties", "weaponTypes"
-  ];
-  for ( const key of propertiesToClone ) {
+  for ( const key of getConfigKeys() ) {
     if ( key in CONFIG.DND5E ) {
       CONFIG.CUSTOM_DND5E[key] = foundry.utils.deepClone(CONFIG.DND5E[key]);
     }
@@ -111,6 +66,17 @@ function cloneDnd5eConfig() {
  */
 Hooks.on("init", async () => {
   cloneDnd5eConfig();
+
+  CONFIG.Actor.dataModels ??= {};
+  CONFIG.Actor.dataModels[CONSTANTS.DROP_ITEMS.ACTOR_TYPE] = ItemActorDataModel;
+  CONFIG.Actor.typeIcons ??= {};
+  CONFIG.Actor.typeIcons[CONSTANTS.DROP_ITEMS.ACTOR_TYPE] = "fa-solid fa-treasure-chest";
+  CONFIG.DND5E ??= {};
+  CONFIG.DND5E.defaultArtwork ??= {};
+  CONFIG.DND5E.defaultArtwork.Actor ??= {};
+  CONFIG.DND5E.defaultArtwork.Actor[CONSTANTS.DROP_ITEMS.ACTOR_TYPE] = CONSTANTS.DROP_ITEMS.DEFAULT_ICON;
+  registerItemActorSheet();
+  registerItemTokenHUD();
 
   game.keybindings.register(MODULE.ID, "stopAnimations", {
     name: "CUSTOM_DND5E.keybinding.stopAnimations",
@@ -128,31 +94,13 @@ Hooks.on("init", async () => {
   const module = game.modules.get(MODULE.ID);
   module.api = {
     animations,
-    counters: {
-      checkCheckbox,
-      uncheckCheckbox,
-      toggleCheckbox,
-      increaseFraction,
-      decreaseFraction,
-      modifyFraction,
-      setFraction,
-      increaseNumber,
-      decreaseNumber,
-      modifyNumber,
-      setNumber,
-      increaseSuccess,
-      decreaseSuccess,
-      modifySuccess,
-      increaseFailure,
-      decreaseFailure,
-      modifyFailure,
-      togglePip
-    },
+    counters,
     migrations,
     workflows
   };
 
   registerSockets();
+  registerQueries();
 
   registerSetting(
     CONSTANTS.DEBUG.SETTING.KEY,
@@ -166,91 +114,112 @@ Hooks.on("init", async () => {
 
   patchD20Die();
   patchD20Roll();
+  patchInitiativeRoll();
+  patchPrepareBaseData();
   patchPrepareEncumbrance();
   patchPrepareMovement();
+  patchPrepareDerivedData();
   patchPrepareMovementAttribution();
-  patchPrepareSenses();
   patchPrepareSkillsTools();
 
   registerMigration();
   registerCharacterSheet();
 
   registerGameplay();
+  registerSpeedFactorInitiative();
+  registerInterface();
+  registerItemInteractions();
   registerActivities();
   registerCounters();
   registerTidy5eCounters();
   registerWorkflows();
   registerWorkflowsTidy5e();
 
-  registerAbilities();
-  registerActivationCosts();
+  configs.abilities.register();
+  configs.activationCosts.register();
   registerActorSheet();
   registerActorSheetTidy5e();
-  registerActorSizes();
-  registerArmorCalculations();
-  registerArmorIds();
-  registerArmorProficiencies();
-  registerBastions();
-  registerBloodied();
-  registerCalendar();
+  configs.actorSizes.register();
+  configs.armorCalculations.register();
+  configs.armorIds.register();
+  configs.armorProficiencies.register();
+  configs.bastions.register();
+  configs.bloodied.register();
+  configs.calendar.register();
   registerCampSupplies();
-  registerConditionsMenu();
+  configs.conditions.registerMenu();
+  configs.conditionEffects.registerMenu();
   registerConditionLevels();
-  registerConsumableTypes();
-  registerCreatureTypes();
-  registerCurrency();
-  registerDamageTypes();
-  registerEncumbrance();
-  registerEquipmentTypes();
+  configs.consumableTypes.register();
+  configs.creatureTypes.register();
+  configs.currency.register();
+  configs.damageTypes.register();
+  configs.encumbrance.register();
+  configs.miscEquipmentTypes.register();
   registerExhaustion();
-  registerFeatureTypes();
-  registerItemActionTypes();
-  registerItemActivationCostTypes();
-  registerItemProperties();
-  registerItemRarity();
+  registerGiveItems();
+  registerDropItems();
+  registerInventoryDrag();
+  configs.featureTypes.register();
+  configs.itemActionTypes.register();
+  configs.itemActivationCostTypes.register();
+  configs.itemProperties.register();
+  configs.itemRarity.register();
   registerItemSheet();
-  registerLanguages();
-  registerLootTypes();
-  registerRestTypes();
+  configs.languages.register();
+  configs.lootTypes.register();
+  configs.movementTypes.register();
+  registerProficiencyBonus();
+  configs.restTypes.register();
   registerRolls();
-  registerSenses();
-  registerSkills();
-  registerSpellSchools();
-  registerTools();
-  registerToolProficiencies();
-  registerWeaponIds();
-  registerWeaponMasteries();
-  registerWeaponProficiencies();
+  configs.senses.register();
+  configs.skills.register();
+  configs.spellcasting.register();
+  configs.spellSchools.register();
+  configs.tools.register();
+  configs.toolProficiencies.register();
+  configs.weaponIds.register();
+  configs.weaponMasteries.register();
+  configs.weaponProficiencies.register();
   registerMisc();
   registerRadialStatusEffects();
   registerRulerTravelTime();
   registerTokenBorder();
+  registerTokenDistance();
   registerTokenEffects();
   registerTokenHudImprovements();
   registerDebug();
+  registerDetachedSheets();
 
-  setAbilities(getSetting(CONSTANTS.ABILITIES.SETTING.CONFIG.KEY));
+  configs.abilities.setConfig();
   const isV4 = foundry.utils.isNewerVersion(game.dnd5e.version, "3.3.1");
   if ( isV4 ) {
-    setActivationCosts(getSetting(CONSTANTS.ACTIVATION_COSTS.SETTING.CONFIG.KEY));
+    configs.activationCosts.setConfig();
   }
-  setCurrency(getSetting(CONSTANTS.CURRENCY.SETTING.CONFIG.KEY));
-  await setEncumbrance(getSetting(CONSTANTS.ENCUMBRANCE.SETTING.CONFIG.KEY));
-  setItemRarity(getSetting(CONSTANTS.ITEM_RARITY.SETTING.CONFIG.KEY));
-  setLanguages(getSetting(CONSTANTS.LANGUAGES.SETTING.CONFIG.KEY));
-  // setSenses(getSetting(CONSTANTS.SENSES.SETTING.CONFIG.KEY));
-  setSkills(getSetting(CONSTANTS.SKILLS.SETTING.CONFIG.KEY));
+  configs.currency.setConfig();
+  configs.spellcasting.setConfig();
+  await configs.encumbrance.setConfig();
+  configs.itemRarity.setConfig();
+  configs.languages.setConfig();
+  configs.senses.setConfig();
+  configs.skills.setConfig();
 
   // Must be registered after abilities and skills are set
   registerNegativeHp();
 
   const templates = [
+    CONSTANTS.CONFIG.TEMPLATE.EDIT,
     CONSTANTS.CONFIG.TEMPLATE.EDIT_IN_LIST,
     CONSTANTS.CONFIG.TEMPLATE.FORM,
+    CONSTANTS.CONFIG.TEMPLATE.SECTIONS,
     CONSTANTS.CONFIG.TEMPLATE.LIST,
+    CONSTANTS.CONFIG.TEMPLATE.TABLE,
+    CONSTANTS.CONFIG.TEMPLATE.TABLE_ROWS,
+    CONSTANTS.CONFIG.TEMPLATE.FIELD,
+    CONSTANTS.CONFIG.TEMPLATE.FIELD_CHECKBOX_GRID,
+    CONSTANTS.CONFIG.TEMPLATE.FIELD_MACRO_DROP,
     CONSTANTS.ACTOR_SHEET.TEMPLATE.CHARACTER_SHEET_2,
     CONSTANTS.ACTOR_SHEET.TEMPLATE.CHARACTER_DETAILS,
-    CONSTANTS.MESSAGE.TEMPLATE.ROLL_REQUEST_CARD,
     "modules/custom-dnd5e/templates/footer.hbs"
   ];
   c5eLoadTemplates(templates);
@@ -262,57 +231,53 @@ Hooks.on("init", async () => {
 Hooks.on("ready", async () => {
   Handlebars.registerHelper({
     customDnd5eBoolFalse: function(value) { return value === false; },
+    customDnd5eChecked: function(value) { return value !== false ? "checked" : ""; },
     customDnd5eEq: function(a, b) { return a === b; },
-    customDnd5eRandomId: function() { return foundry.utils.randomID(); },
-    customDnd5eTrue: function(value) { return !!value; },
-    customDnd5eUndef: function(value) { return typeof value === "undefined" || value === null; },
+    customDnd5eModuleMarker: function() { return new Handlebars.SafeString(getModuleMarker()); },
     customDnd5eDotNotateChild: function(childType, parent, child) {
       if ( parent ) {
         return `${parent}.${childType}.${child}`;
       }
       return `${child}`;
-    },
-    customDnd5eShowActionValue: function(value) {
-      const allowed = ["increase", "decrease", "set"];
-      return allowed.includes(value);
-    },
-    customDnd5eShowTriggerValue: function(value) {
-      const allowed = ["counterValue", "successValue", "failureValue", "attackRolled"];
-      return allowed.includes(value);
     }
   });
 
   CONFIG.CUSTOM_DND5E.coreStatusEffects = foundry.utils.deepClone(CONFIG.statusEffects);
-  registerConditions();
+  configs.conditions.register();
+  configs.conditionEffects.register();
 
   await migrate();
 
-  setActorSizes(getSetting(CONSTANTS.ACTOR_SIZES.SETTING.CONFIG.KEY));
-  setArmorCalculations(getSetting(CONSTANTS.ARMOR_CALCULATIONS.SETTING.CONFIG.KEY));
-  setArmorIds(getSetting(CONSTANTS.ARMOR_IDS.SETTING.CONFIG.KEY));
-  setArmorProficiencies(getSetting(CONSTANTS.ARMOR_PROFICIENCIES.SETTING.CONFIG.KEY));
-  setBastions(getSetting(CONSTANTS.BASTIONS.SETTING.CONFIG.KEY));
-  setBloodied(getSetting(CONSTANTS.BLOODIED.SETTING.CONFIG.KEY));
-  setConditions(getSetting(CONSTANTS.CONDITIONS.SETTING.CONFIG.KEY));
-  addBloodiedCondition();
-  setConsumableTypes(getSetting(CONSTANTS.CONSUMABLE_TYPES.SETTING.CONFIG.KEY));
-  setCreatureTypes(getSetting(CONSTANTS.CREATURE_TYPES.SETTING.CONFIG.KEY));
-  setDamageTypes(getSetting(CONSTANTS.DAMAGE_TYPES.SETTING.CONFIG.KEY));
-  setEquipmentTypes(getSetting(CONSTANTS.MISC_EQUIPMENT_TYPES.SETTING.CONFIG.KEY));
-  setFeatureTypes(getSetting(CONSTANTS.FEATURE_TYPES.SETTING.CONFIG.KEY));
+  configs.actorSizes.setConfig();
+  configs.armorCalculations.setConfig();
+  configs.armorIds.setConfig();
+  configs.armorProficiencies.setConfig();
+  configs.bastions.setConfig();
+  configs.bloodied.setConfig();
+  configs.conditions.setConfig();
+  configs.conditionEffects.setConfig();
+  configs.bloodied.addBloodiedCondition();
+  syncAutoApplyDowned();
+  configs.consumableTypes.setConfig();
+  configs.creatureTypes.setConfig();
+  configs.damageTypes.setConfig();
+  configs.miscEquipmentTypes.setConfig();
+  configs.movementTypes.setConfig();
+  configs.featureTypes.setConfig();
   const isV4 = foundry.utils.isNewerVersion(game.dnd5e.version, "3.3.1");
   if ( !isV4 ) {
-    setItemActionTypes(getSetting(CONSTANTS.ITEM_ACTION_TYPES.SETTING.CONFIG.KEY));
-    setItemActivationCostTypes(getSetting(CONSTANTS.ITEM_ACTIVATION_COST_TYPES.SETTING.CONFIG.KEY));
+    configs.itemActionTypes.setConfig();
+    configs.itemActivationCostTypes.setConfig();
   }
-  setItemProperties(getSetting(CONSTANTS.ITEM_PROPERTIES.SETTING.CONFIG.KEY));
-  setLootTypes(getSetting(CONSTANTS.LOOT_TYPES.SETTING.CONFIG.KEY));
-  setRestTypes(getSetting(CONSTANTS.REST_TYPES.SETTING.CONFIG.KEY));
-  setSpellSchools(getSetting(CONSTANTS.SPELL_SCHOOLS.SETTING.CONFIG.KEY));
-  setTools(getSetting(CONSTANTS.TOOLS.SETTING.CONFIG.KEY));
-  setToolProficiencies(getSetting(CONSTANTS.TOOL_PROFICIENCIES.SETTING.CONFIG.KEY));
-  setWeaponIds(getSetting(CONSTANTS.WEAPON_IDS.SETTING.CONFIG.KEY));
-  setWeaponMasteries(getSetting(CONSTANTS.WEAPON_MASTERIES.SETTING.CONFIG.KEY));
-  setWeaponProficiencies(getSetting(CONSTANTS.WEAPON_PROFICIENCIES.SETTING.CONFIG.KEY));
+  configs.itemProperties.setConfig();
+  configs.lootTypes.setConfig();
+  configs.restTypes.setConfig();
+  configs.spellSchools.setConfig();
+  configs.tools.setConfig();
+  configs.toolProficiencies.setConfig();
+  configs.weaponIds.setConfig();
+  configs.weaponMasteries.setConfig();
+  configs.weaponProficiencies.setConfig();
+  setEquipmentTypes();
   setMaxLevel(getSetting(CONSTANTS.MAX_LEVEL.SETTING.KEY));
 });
