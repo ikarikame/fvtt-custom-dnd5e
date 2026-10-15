@@ -22,8 +22,17 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: http.version
+          GIT_CONFIG_VALUE_0: HTTP/1.1
         with:
           persist-credentials: false
+          # Sparse checkout also enables a blobless fetch: README media is not downloaded.
+          sparse-checkout: |
+            /*
+            !/.github/readme/
+          sparse-checkout-cone-mode: false
 
       - name: Check Build Tools
         run: |
