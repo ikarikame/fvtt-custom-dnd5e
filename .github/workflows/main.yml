@@ -3,50 +3,99 @@ name: Create Module Files For GitHub Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Local test package version (no release will be published)
+        required: true
+        default: '5.6.0.1'
+        type: string
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    if: github.repository == 'ikarikame/fvtt-custom-dnd5e'
+    runs-on: [self-hosted, Linux, ARM64, custom-dnd5e]
+    timeout-minutes: 30
     permissions:
       contents: write
   
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Extract Version From Tag
-        id: get_version
-        uses: battila7/get-version-action@v2
+      - name: Check Build Tools
+        run: |
+          uname -m
+          command -v zip
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
       
-      - name: Install Foundry CLI
-        run: npm install @foundryvtt/foundryvtt-cli --save-dev
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Regression Tests
+        run: npm test
 
       - name: Build Packs
+        run: npm run build
+
+      - name: Verify Compiled Packs
         run: |
-          node ./scripts/packs.js package pack --if-present
+          for pack in custom-dnd5e-items custom-dnd5e-journals custom-dnd5e-macros; do
+            test -s "packs/$pack/CURRENT"
+          done
 
       - name: Modify Module Manifest With Release-Specific Values
-        id: sub_manifest_link_version
-        uses: microsoft/variable-substitution@v1
-        with:
-          files: 'module.json'
         env:
-          version: ${{steps.get_version.outputs.version-without-v}}
-          url: https://github.com/${{github.repository}}
-          manifest: https://github.com/${{github.repository}}/releases/latest/download/module.json
-          download: https://github.com/${{github.repository}}/releases/download/${{github.event.release.tag_name}}/module.zip
+          TEST_VERSION: ${{ inputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
+          const manifest = JSON.parse(fs.readFileSync("module.json", "utf8"));
+          const url = `https://github.com/${process.env.GITHUB_REPOSITORY}`;
+          manifest.url = url;
+          if (process.env.GITHUB_EVENT_NAME === "release") {
+            const tag = event.release.tag_name;
+            manifest.version = tag.replace(/^v/, "");
+            manifest.download = `${url}/releases/download/${encodeURIComponent(tag)}/module.zip`;
+            manifest.manifest = event.release.prerelease
+              ? `${url}/releases/download/${encodeURIComponent(tag)}/module.json`
+              : `${url}/releases/latest/download/module.json`;
+          } else {
+            manifest.version = process.env.TEST_VERSION;
+            delete manifest.manifest;
+            delete manifest.download;
+          }
+          fs.writeFileSync("module.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
 
-      - run: zip -r ./module.zip module.json README.md languages/ media/ packs/ scripts/ styles/ templates/ -x "packs/_source/*"
+      - run: zip -r ./module.zip module.json README.md ATTRIBUTION.md languages/ media/ packs/ scripts/ styles/ templates/ -x "packs/_source/*"
 
       - name: Verify Release Files
-        run: ls -lah ./module.json ./module.zip
+        run: |
+          ls -lah ./module.json ./module.zip
+          zip -T ./module.zip
+
+      - name: Upload Test Package
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: custom-dnd5e-test-${{ github.run_number }}
+          path: |
+            module.json
+            module.zip
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Update Release with Files
+        if: github.event_name == 'release'
         id: create_version_release
         uses: ncipollo/release-action@v1
         with:

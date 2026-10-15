@@ -3,3 +3,4 @@ packs/*
 !packs/_source/
 symlink.bat
 docs/*
+dist/
