@@ -13,6 +13,7 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
   const hooks = new Map();
   const patches = new Map();
   const settings = new Map([["rolls", rolls], ["ruler-travel-time", true]]);
+  const registrations = new Map();
   class Die {
     constructor({ number = 1, faces = 20, options = {} } = {}) {
       Object.assign(this, { number, faces, options, modifiers: [], results: [] });
@@ -72,12 +73,26 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
       i18n: { localize: key => key },
       settings: {
         get: (module, key) => settings.get(key),
-        register: () => {},
+        register: (module, key, value) => registrations.set(`${module}.${key}`, value),
+        settings: registrations,
+        set: async (module, key, value) => settings.set(key, value),
         registerMenu: () => {}
       }
     },
     foundry: {
-      applications: { handlebars: { loadTemplates: async () => {} } },
+      utils: {
+        deepClone: structuredClone,
+        setProperty(object, key, value) {
+          const parts = key.split(".");
+          const last = parts.pop();
+          const target = parts.reduce((o, part) => o[part] ??= {}, object);
+          target[last] = value;
+        }
+      },
+      applications: {
+        handlebars: { loadTemplates: async () => {} },
+        settings: { SettingsConfig: { reloadConfirm: () => {} } }
+      },
       dice: { terms: { OperatorTerm: class { constructor(data) { Object.assign(this, data); } } } }
     },
     Roll: { parse: () => [{ number: 1, faces: 6 }] },
@@ -252,6 +267,69 @@ test("weapon settings override general attacks and legacy settings get safe UI d
   assert.equal(context.rolls.attack.criticalRule, "normal");
   assert.equal(context.rolls.attack.criticalLowerBound, 19);
   assert.equal(context.rolls.weaponTypes.simpleM.criticalRule, "equalDice");
+  assert.equal(context.rolls.weaponTypeOverridesEnabled, true);
+  assert.equal(env.settings.get("rolls").weaponTypeOverridesEnabled, undefined, "render must not mutate settings");
+});
+
+test("disabled overrides use all global attack settings for every roll and retain saved weapons", async () => {
+  const saved = {
+    weaponTypeOverridesEnabled: false,
+    attack: { die: "2d10", rollMode: "blindroll", criticalRule: "window", criticalLowerBound: 18 },
+    weaponTypes: { simpleM: { die: "1d20", rollMode: "publicroll", criticalRule: "normal" } }
+  };
+  const env = environment(saved);
+  (await env.importModule("scripts/rolls.js")).register();
+  const config = {
+    hookNames: ["attack"], subject: { item: { system: { type: { value: "simpleM" } } } },
+    rolls: [{ options: { target: 12 } }, {}]
+  };
+  const message = {};
+  env.hooks.get("dnd5e.preRollV2")(config, {}, message);
+  for ( const entry of config.rolls ) {
+    assert.equal(entry.options.customDie, "2d10");
+    assert.equal(entry.options.criticalSuccess, 18);
+    assert.equal(entry.options.customDnd5eCriticalRule, "window");
+  }
+  assert.equal(config.rolls[0].options.target, 12);
+  assert.equal(message.rollMode, "blindroll");
+  assert.equal(saved.weaponTypes.simpleM.die, "1d20");
+  const { RollsForm } = await env.importModule("scripts/forms/rolls-form.js");
+  const context = await new RollsForm()._prepareContext();
+  assert.equal(context.rolls.weaponTypeOverridesEnabled, false);
+  assert.equal(context.rolls.weaponTypes.simpleM.die, "1d20");
+});
+
+test("only enabled weapon overrides activate custom patches; new settings disable overrides", async () => {
+  const env = environment({ weaponTypeOverridesEnabled: false, attack: { die: "1d20" }, weaponTypes: {
+    simpleM: { die: "2d10" }
+  } });
+  const rolls = await env.importModule("scripts/rolls.js");
+  rolls.register();
+  assert.equal(rolls.isCustomRoll(), false);
+  assert.equal(env.context.game.settings.settings.get("custom-dnd5e.rolls").default.weaponTypeOverridesEnabled, false);
+  env.settings.get("rolls").weaponTypeOverridesEnabled = true;
+  assert.equal(rolls.isCustomRoll(), true);
+  const { getAttackRollSettings } = await env.importModule("scripts/roll-settings.js");
+  assert.equal(getAttackRollSettings(env.settings.get("rolls"), "unknown").die, "1d20");
+});
+
+test("saving disabled overrides preserves their values and they work again when enabled", async () => {
+  const env = environment();
+  (await env.importModule("scripts/rolls.js")).register();
+  const { RollsForm } = await env.importModule("scripts/forms/rolls-form.js");
+  await RollsForm.submit({}, {}, { object: {
+    "rolls.weaponTypeOverridesEnabled": false,
+    "rolls.attack.die": "2d10",
+    "rolls.attack.rollMode": "blindroll",
+    "rolls.weaponTypes.simpleM.die": "1d12",
+    "rolls.weaponTypes.simpleM.rollMode": "default"
+  } });
+  const saved = env.settings.get("rolls");
+  const { getAttackRollSettings } = await env.importModule("scripts/roll-settings.js");
+  assert.equal(getAttackRollSettings(saved, "simpleM").die, "2d10");
+  saved.weaponTypeOverridesEnabled = true;
+  assert.equal(getAttackRollSettings(saved, "simpleM").die, "1d12");
+  assert.equal(getAttackRollSettings(saved, "simpleM").rollMode, "blindroll");
 });
 
 async function ruler(token, units = "ft") {

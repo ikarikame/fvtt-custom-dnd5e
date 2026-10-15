@@ -1,6 +1,7 @@
 import { CONSTANTS, JOURNAL_HELP_BUTTON, MODULE } from "../constants.js";
 import { getDieParts, getSetting, setSetting } from "../utils.js";
 import { CustomDnd5eForm } from "./custom-dnd5e-form.js";
+import { areWeaponOverridesEnabled } from "../roll-settings.js";
 
 /**
  * Class representing the Rolls Form.
@@ -59,7 +60,8 @@ export class RollsForm extends CustomDnd5eForm {
    * @returns {Promise<object>} Context data
    */
   async _prepareContext() {
-    const rolls = getSetting(CONSTANTS.ROLLS.SETTING.ROLLS.KEY) ?? {};
+    const rolls = foundry.utils.deepClone(getSetting(CONSTANTS.ROLLS.SETTING.ROLLS.KEY) ?? {});
+    rolls.weaponTypeOverridesEnabled = areWeaponOverridesEnabled(rolls);
     const weaponTypes = {};
     rolls.attack ??= {};
 
@@ -163,6 +165,11 @@ export class RollsForm extends CustomDnd5eForm {
   _onRender(context, options) {
     super._onRender(context, options);
     this._bindCriticalRuleVisibility();
+    const checkbox = this.element.querySelector('[name="rolls.weaponTypeOverridesEnabled"]');
+    const overrides = this.element.querySelector("[data-weapon-overrides]");
+    checkbox?.addEventListener("change", () => {
+      overrides?.classList.toggle("hidden", !checkbox.checked);
+    });
   }
 
   /* -------------------------------------------- */

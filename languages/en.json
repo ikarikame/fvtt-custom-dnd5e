@@ -1183,6 +1183,8 @@
     "CUSTOM_DND5E.rolls.criticalRule.equalDice": "Equal Dice Results",
     "CUSTOM_DND5E.rolls.criticalRule.normal": "Normal Behaviour",
     "CUSTOM_DND5E.rolls.criticalRule.window": "Increase Critical Window",
+    "CUSTOM_DND5E.rolls.weaponOverrides.enable": "Enable weapon type overrides",
+    "CUSTOM_DND5E.rolls.weaponOverrides.hint": "When disabled, all attack rolls use the main attack settings, including the die, roll mode and critical rules. Saved weapon overrides are kept for later use.",
     "CUSTOM_DND5E.rollTypes": "Roll Types",
     "CUSTOM_DND5E.rollingHitPoints": "Rolling Hit Points",
     "CUSTOM_DND5E.rollsReduction": "Rolls Reduction",

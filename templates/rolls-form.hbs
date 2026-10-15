@@ -180,6 +180,14 @@
             </fieldset>
         </section>
         <section class="tab" data-group="primary" data-tab="weaponTypes">
+            <div class="form-group">
+                <label>{{localize "CUSTOM_DND5E.rolls.weaponOverrides.enable"}}</label>
+                <div class="form-fields">
+                    <input type="checkbox" name="rolls.weaponTypeOverridesEnabled" {{checked rolls.weaponTypeOverridesEnabled}}>
+                </div>
+                <p class="hint">{{localize "CUSTOM_DND5E.rolls.weaponOverrides.hint"}}</p>
+            </div>
+            <div data-weapon-overrides class="{{#unless rolls.weaponTypeOverridesEnabled}}hidden{{/unless}}">
             {{#each rolls.weaponTypes as |weaponType key|}}
             <fieldset>
                 <legend>{{label}}</legend>
@@ -215,6 +223,7 @@
                 </div>
             </fieldset>
             {{/each}}
+            </div>
         </section>  
     </div>
     <footer class="form-footer" data-application-part="footer">

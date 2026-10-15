@@ -2,6 +2,7 @@ import { CONSTANTS } from "./constants.js";
 import { clampAttackCriticalLowerBound, isEqualDiceCriticalRoll, isWindowCriticalRoll } from "./critical-rules.js";
 import { c5eLoadTemplates, getDieParts, getSetting, registerMenu, registerSetting } from "./utils.js";
 import { RollsForm } from "./forms/rolls-form.js";
+import { areWeaponOverridesEnabled, getAttackRollSettings } from "./roll-settings.js";
 
 const constants = CONSTANTS.ROLLS;
 
@@ -43,6 +44,7 @@ function registerSettings() {
       config: false,
       type: Object,
       default: {
+        weaponTypeOverridesEnabled: false,
         ability: { die: "1d20", rollMode: "default" },
         attack: getDefaultAttackRollSettings(),
         concentration: { die: "1d20", rollMode: "default" },
@@ -77,12 +79,7 @@ function registerHooks() {
     } else if ( hookNames.includes("attack") ) {
       isAttackRoll = true;
       const weaponType = config?.subject?.item?.system?.type?.value;
-      roll = (rolls.weaponTypes?.[weaponType]?.die)
-        ? rolls.weaponTypes[weaponType]
-        : rolls.attack;
-      rollMode = (rolls.weaponTypes?.[weaponType]?.rollMode && rolls.weaponTypes?.[weaponType]?.rollMode !== "default")
-        ? rolls.weaponTypes[weaponType].rollMode
-        : rolls.attack.rollMode;
+      roll = getAttackRollSettings(rolls, weaponType);
     } else if ( hookNames.includes("skill") ) {
       roll = rolls.skill;
       rollMode = CONFIG.DND5E?.skills[config.skill]?.rollMode;
@@ -99,15 +96,16 @@ function registerHooks() {
     if ( !roll || game.user.isGM ) return;
 
     const dieParts = getDieParts(roll.die);
-    if ( roll.die !== "1d20" && dieParts ) {
-      config.rolls[0].options.customDie = roll.die;
-      config.rolls[0].options.criticalSuccess = dieParts.number * dieParts.faces;
-      config.rolls[0].options.criticalFailure = dieParts.number;
-    }
+    for ( const rollConfig of config.rolls ?? [] ) {
+      const options = rollConfig.options ??= {};
+      if ( roll.die !== "1d20" && dieParts ) {
+        options.customDie = roll.die;
+        options.criticalSuccess = dieParts.number * dieParts.faces;
+        options.criticalFailure = dieParts.number;
+      }
 
-    // Apply attack critical rules after default critical thresholds are assigned so custom windows are not overwritten.
-    if ( isAttackRoll ) {
-      applyAttackCriticalRule(config.rolls[0].options, roll, dieParts);
+      // Apply custom windows after assigning the base die's critical thresholds.
+      if ( isAttackRoll ) applyAttackCriticalRule(options, roll, dieParts);
     }
 
     const rollModes = ["publicroll", "gmroll", "blindroll", "selfroll"];
@@ -259,7 +257,8 @@ export function isCustomRoll() {
     rolls.savingThrow?.die,
     rolls.skill?.die,
     rolls.tool?.die,
-    ...Object.values(rolls.weaponTypes ?? {}).map(weaponType => weaponType?.die)
+    ...Object.values(areWeaponOverridesEnabled(rolls) ? (rolls.weaponTypes ?? {}) : {})
+      .map(weaponType => weaponType?.die)
   ];
 
   return customRolls.some(die => die && die !== "1d20");
