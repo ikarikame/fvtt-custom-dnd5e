@@ -1,7 +1,7 @@
 import { CONSTANTS, JOURNAL_HELP_BUTTON, MODULE } from "../constants.js";
 import { getDieParts, getSetting, setSetting } from "../utils.js";
 import { CustomDnd5eForm } from "./custom-dnd5e-form.js";
-import { areWeaponOverridesEnabled } from "../roll-settings.js";
+import { areWeaponOverridesEnabled, isExpressionRoll, validateRollConfiguration } from "../roll-settings.js";
 
 /**
  * Class representing the Rolls Form.
@@ -63,7 +63,12 @@ export class RollsForm extends CustomDnd5eForm {
     const rolls = foundry.utils.deepClone(getSetting(CONSTANTS.ROLLS.SETTING.ROLLS.KEY) ?? {});
     rolls.weaponTypeOverridesEnabled = areWeaponOverridesEnabled(rolls);
     const weaponTypes = {};
-    rolls.attack ??= {};
+    for ( const key of ["ability", "attack", "concentration", "initiative", "savingThrow", "skill", "tool"] ) {
+      const setting = rolls[key] ??= {};
+      setting.mode ??= "simple";
+      setting.die ??= "1d20";
+      setting.isExpression = isExpressionRoll(setting);
+    }
 
     Object.entries(CONFIG.DND5E.weaponTypes).forEach(([key, value]) => {
       const die = rolls.weaponTypes?.[key]?.die || "1d20";
@@ -71,7 +76,8 @@ export class RollsForm extends CustomDnd5eForm {
       const rollMode = rolls.weaponTypes?.[key]?.rollMode || "default";
       const criticalRule = rolls.weaponTypes?.[key]?.criticalRule || "normal";
       const criticalLowerBound = Math.min(Number.parseInt(rolls.weaponTypes?.[key]?.criticalLowerBound, 10) || 19, 19);
-      weaponTypes[key] = { die, label, rollMode, criticalRule, criticalLowerBound };
+      const mode = rolls.weaponTypes?.[key]?.mode ?? "simple";
+      weaponTypes[key] = { die, label, rollMode, criticalRule, criticalLowerBound, mode, isExpression: mode === "expression" };
     });
 
     rolls.attack.criticalRule ||= "normal";
@@ -81,6 +87,12 @@ export class RollsForm extends CustomDnd5eForm {
     return {
       rolls,
       selects: {
+        formulaMode: {
+          choices: {
+            simple: "CUSTOM_DND5E.rolls.formulaMode.simple",
+            expression: "CUSTOM_DND5E.rolls.formulaMode.expression"
+          }
+        },
         criticalLowerBound: {
           choices: Object.fromEntries(Array.from({ length: 19 }, (_, i) => {
             const value = i + 1;
@@ -153,6 +165,18 @@ export class RollsForm extends CustomDnd5eForm {
       }
     });
 
+    try {
+      validateRollConfiguration(rolls.rolls);
+    } catch (error) {
+      ui.notifications.error(game.i18n.format("CUSTOM_DND5E.rolls.invalidFormula", {
+        field: error.field, error: error.message
+      }));
+      const input = form.querySelector(`[name="${error.field}"]`);
+      input?.setCustomValidity(error.message);
+      input?.reportValidity();
+      return;
+    }
+
     await setSetting(CONSTANTS.ROLLS.SETTING.ROLLS.KEY, {});
     await setSetting(CONSTANTS.ROLLS.SETTING.ROLLS.KEY, rolls.rolls);
 
@@ -165,6 +189,22 @@ export class RollsForm extends CustomDnd5eForm {
   _onRender(context, options) {
     super._onRender(context, options);
     this._bindCriticalRuleVisibility();
+    for ( const fieldset of this.element.querySelectorAll("fieldset") ) {
+      const mode = fieldset.querySelector("[data-roll-formula-mode]");
+      const label = fieldset.querySelector("[data-roll-formula-label]");
+      const hint = fieldset.querySelector("[data-roll-expression-hint]");
+      const input = fieldset.querySelector('input[name$=".die"]');
+      if ( !mode || !input ) continue;
+      const updateMode = () => {
+        const expression = mode.value === "expression";
+        label.textContent = game.i18n.localize(expression ? "CUSTOM_DND5E.formula" : "CUSTOM_DND5E.die");
+        hint.classList.toggle("hidden", !expression);
+        input.setCustomValidity("");
+      };
+      mode.addEventListener("change", updateMode);
+      input.addEventListener("input", () => input.setCustomValidity(""));
+      updateMode();
+    }
     const checkbox = this.element.querySelector('[name="rolls.weaponTypeOverridesEnabled"]');
     const overrides = this.element.querySelector("[data-weapon-overrides]");
     checkbox?.addEventListener("change", () => {
@@ -181,6 +221,7 @@ export class RollsForm extends CustomDnd5eForm {
     const fieldsets = this.element.querySelectorAll("fieldset");
     for ( const fieldset of fieldsets ) {
       const dieInput = fieldset.querySelector('input[name$=".die"]');
+      const modeSelect = fieldset.querySelector("[data-roll-formula-mode]");
       const ruleSelect = fieldset.querySelector('select[name$=".criticalRule"]');
       const lowerBoundGroup = fieldset.querySelector("[data-critical-lower-bound-group]");
       if ( !ruleSelect || !lowerBoundGroup ) continue;
@@ -195,7 +236,7 @@ export class RollsForm extends CustomDnd5eForm {
         if ( !equalDiceOption ) return;
 
         const dieParts = getDieParts(dieInput?.value?.trim());
-        const canUseEqualDice = dieParts?.number === 2 && dieParts?.faces === 10;
+        const canUseEqualDice = modeSelect?.value !== "expression" && dieParts?.number === 2 && dieParts?.faces === 10;
 
         equalDiceOption.disabled = !canUseEqualDice;
         if ( !canUseEqualDice && ruleSelect.value === "equalDice" ) {
@@ -206,6 +247,10 @@ export class RollsForm extends CustomDnd5eForm {
       updateEqualDiceAvailability();
       updateVisibility();
       ruleSelect.addEventListener("change", updateVisibility);
+      modeSelect?.addEventListener("change", () => {
+        updateEqualDiceAvailability();
+        updateVisibility();
+      });
       dieInput?.addEventListener("input", () => {
         updateEqualDiceAvailability();
         updateVisibility();

@@ -17,16 +17,7 @@
         <section class="tab active" data-group="primary" data-tab="coreRolls">
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.abilityCheck"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-ability-die"
-                            name="rolls.ability.die"
-                            type="text"
-                            value="{{rolls.ability.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.ability" roll=rolls.ability selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -38,16 +29,7 @@
             </fieldset>
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.attackRoll"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-attack-die"
-                            name="rolls.attack.die"
-                            type="text"
-                            value="{{rolls.attack.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.attack" roll=rolls.attack selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -75,16 +57,7 @@
             </fieldset>
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.concentrationSavingThrow"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-concentration-die"
-                            name="rolls.concentration.die"
-                            type="text"
-                            value="{{rolls.concentration.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.concentration" roll=rolls.concentration selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -96,16 +69,7 @@
             </fieldset>
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.initiativeRoll"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-initiative-die"
-                            name="rolls.initiative.die"
-                            type="text"
-                            value="{{rolls.initiative.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.initiative" roll=rolls.initiative selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -117,16 +81,7 @@
             </fieldset>
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.savingThrow"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-saving-throw-die"
-                            name="rolls.savingThrow.die"
-                            type="text"
-                            value="{{rolls.savingThrow.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.savingThrow" roll=rolls.savingThrow selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -138,16 +93,7 @@
             </fieldset>
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.skillCheck"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-skill-die"
-                            name="rolls.skill.die"
-                            type="text"
-                            value="{{rolls.skill.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.skill" roll=rolls.skill selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -159,16 +105,7 @@
             </fieldset>
             <fieldset>
                 <legend>{{localize "CUSTOM_DND5E.toolCheck"}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input
-                            id="custom-dnd5e-rolls-tool-die"
-                            name="rolls.tool.die"
-                            type="text"
-                            value="{{rolls.tool.die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.tool" roll=rolls.tool selects=selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">
@@ -191,12 +128,7 @@
             {{#each rolls.weaponTypes as |weaponType key|}}
             <fieldset>
                 <legend>{{label}}</legend>
-                <div class="form-group">
-                    <label>{{localize "CUSTOM_DND5E.die"}}</label>
-                    <div class="form-fields">
-                        <input id="custom-dnd5e-die" name="rolls.weaponTypes.{{key}}.die" type="text" value="{{die}}"> 
-                    </div>
-                </div>
+                {{> "modules/custom-dnd5e/templates/roll-die-fields.hbs" prefix="rolls.weaponTypes" key=key roll=weaponType selects=../selects}}
                 <div class="form-group">
                     <label>{{localize "CUSTOM_DND5E.rollMode"}}</label>
                     <div class="form-fields">

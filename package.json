@@ -17,6 +17,7 @@
     "eslint-plugin-n": "^16.6.2",
     "eslint-plugin-promise": "^6.6.0",
     "globals": "^15.15.0",
+    "handlebars": "^4.7.8",
     "yargs": "^17.7.2"
   }
 }

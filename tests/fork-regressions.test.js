@@ -14,6 +14,7 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
   const patches = new Map();
   const settings = new Map([["rolls", rolls], ["ruler-travel-time", true]]);
   const registrations = new Map();
+  const errors = [];
   class Die {
     constructor({ number = 1, faces = 20, options = {} } = {}) {
       Object.assign(this, { number, faces, options, modifiers: [], results: [] });
@@ -35,6 +36,7 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
 
     constructor(formula, data, options = {}) {
       this.options = options;
+      this.source = formula;
       this._evaluated = false;
       this.data = data;
       const [, number, faces] = formula.match(/(\d+)d(\d+)/);
@@ -49,10 +51,17 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
       config.options.criticalFailure ??= 1;
       config.options.target ??= process.target;
       config.options.halflingLucky ??= process.halflingLucky;
+      config.options.reliableTalent ??= process.reliableTalent;
       return new this("1d20", config.data, config.options);
     }
 
     get validD20Roll() { return this.d20.isValid; }
+
+    get d20() { return this.terms?.[0]; }
+
+    set d20(value) { (this.terms ??= [])[0] = value; }
+
+    get dice() { return this.terms.filter(term => term instanceof Die); }
 
     get isCritical() { return this.d20.total >= (this.options.criticalSuccess ?? 20); }
 
@@ -97,14 +106,14 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
   const context = createContext({
     console,
     CONFIG: {
-      Dice: { D20Die: Die, D20Roll },
+      Dice: { D20Die: Die, D20Roll, rolls: [], termTypes: {} },
       DND5E: { weaponTypes: { simpleM: "Simple Melee" } },
       Canvas: { rulerClass: class {} },
       Token: { movement: { actions: { walk: { label: "Walk" }, fly: { label: "Fly" } } } }
     },
     game: {
       user: { isGM: false },
-      i18n: { localize: key => key },
+      i18n: { localize: key => key, format: (key, values) => `${key}: ${JSON.stringify(values)}` },
       settings: {
         get: (module, key) => settings.get(key),
         register: (module, key, value) => registrations.set(`${module}.${key}`, value),
@@ -127,10 +136,14 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
         handlebars: { loadTemplates: async () => {} },
         settings: { SettingsConfig: { reloadConfirm: () => {} } }
       },
-      dice: { terms: { OperatorTerm: class { constructor(data) { Object.assign(this, data); } } } }
+      dice: {
+        Roll: { validate: () => true, _mapLegacyRollMode: value => value },
+        terms: { OperatorTerm: class { constructor(data) { Object.assign(this, data); } } }
+      }
     },
     Roll: { parse: () => [{ number: 1, faces: 6 }] },
     Hooks: { on: (name, fn) => hooks.set(name, fn) },
+    ui: { notifications: { error: message => errors.push(message) } },
     canvas: {
       grid: { units: "ft" }, stage: { scale: { x: 1 } }, tokens: new Map()
     },
@@ -171,7 +184,7 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
     if ( module.status === "linked" ) await module.evaluate();
     return module.namespace;
   }
-  return { context, hooks, patches, settings, importModule, D20Roll };
+  return { context, hooks, patches, settings, errors, importModule, D20Roll };
 }
 
 async function patchedRolls() {
@@ -447,6 +460,209 @@ test("saving disabled overrides preserves their values and they work again when 
   saved.weaponTypeOverridesEnabled = true;
   assert.equal(getAttackRollSettings(saved, "simpleM").die, "1d12");
   assert.equal(getAttackRollSettings(saved, "simpleM").rollMode, "blindroll");
+});
+
+const customExpression = "10.5 + (2 * 1d2 - 3) * (2d10kh - 0.5)";
+
+test("expression attack settings propagate to every roll without misidentifying the inner 1d2", async () => {
+  const env = environment({ weaponTypeOverridesEnabled: false, attack: {
+    mode: "expression", die: customExpression, criticalRule: "normal", rollMode: "blindroll"
+  }, weaponTypes: { simpleM: { die: "1d20" } } });
+  const module = await env.importModule("scripts/rolls.js");
+  module.register();
+  assert.equal(module.isCustomRoll(), true);
+  const config = {
+    hookNames: ["attack"], subject: { item: { system: { type: { value: "simpleM" } } } },
+    rolls: [{ options: { criticalSuccess: 19, target: 15 } }, { options: {} }]
+  };
+  const message = {};
+  env.hooks.get("dnd5e.preRollV2")(config, {}, message);
+  for ( const entry of config.rolls ) {
+    assert.equal(entry.options.customDnd5eExpression, customExpression);
+    assert.equal(entry.options.customDie, undefined);
+    assert.equal(entry.options.criticalFailure, undefined);
+  }
+  assert.equal(config.rolls[0].options.criticalSuccess, 19, "keep the character's expanded critical range");
+  assert.equal(message.rollMode, "blindroll");
+});
+
+test("expression factory retains native defaults, all system parts/data and exactly one advantage bonus", async () => {
+  for ( const mode of [-1, 0, 1] ) {
+    const env = environment({ attack: { mode: "expression", die: customExpression } });
+    (await env.importModule("scripts/patches/d20-roll.js")).patchD20Roll();
+    const data = { prof: 4, mod: 3 };
+    const roll = env.D20Roll.fromConfig({
+      options: { customDnd5eExpression: customExpression, advantageMode: mode, criticalSuccess: 19 },
+      parts: ["@prof", "@mod"], data
+    }, { target: 17 });
+    assert.equal(roll.constructor.name, "CustomDnd5eExpressionRoll");
+    assert.equal(roll.data, data);
+    assert.equal(roll.options.target, 17);
+    assert.equal(roll.options.criticalSuccess, 19);
+    assert.equal(roll.options.criticalFailure, 1);
+    assert.equal(roll.options.advantageMode, mode);
+    assert.equal(roll.d20.options.customDnd5eExpression, customExpression);
+    assert.equal((roll.source.match(/1d6/g) ?? []).length, mode ? 1 : 0);
+    assert.ok(roll.source.endsWith(" + @prof + @mod"));
+    if ( mode ) assert.ok(roll.source.includes(mode === 1 ? "+ 1d6" : "- 1d6"));
+  }
+});
+
+test("expression classes are registered for old messages even with no active custom settings", async () => {
+  const env = environment({ attack: { die: "1d20" }, weaponTypeOverridesEnabled: false });
+  (await env.importModule("scripts/patches/d20-roll.js")).patchD20Roll();
+  assert.ok(env.context.CONFIG.Dice.rolls.find(cls => cls.name === "CustomDnd5eExpressionRoll"));
+  assert.ok(env.context.CONFIG.Dice.termTypes.CustomDnd5eExpressionDie);
+  assert.equal(env.patches.size, 0, "standard rolls do not need factory patches");
+});
+
+test("malformed saved expressions cancel the hook rather than silently rolling a d20", async () => {
+  const env = environment({ attack: { mode: "expression", die: "1d20 + @prof" } });
+  (await env.importModule("scripts/rolls.js")).register();
+  const config = { hookNames: ["attack"], rolls: [{ options: {} }] };
+  const result = env.hooks.get("dnd5e.preRollV2")(config, {}, {});
+  assert.equal(result, false);
+  assert.equal(env.errors.length, 1);
+  assert.deepEqual(config.rolls[0].options, {});
+});
+
+test("undefined talent interactions abort expression construction with a visible error", async () => {
+  const env = environment({ attack: { mode: "expression", die: customExpression } });
+  (await env.importModule("scripts/patches/d20-roll.js")).patchD20Roll();
+  assert.throws(() => env.D20Roll.fromConfig({ options: {
+    customDnd5eExpression: customExpression
+  } }, { reliableTalent: true }), /no defined behavior/);
+  assert.equal(env.errors.length, 1);
+});
+
+test("death saves and GM rolls bypass expressions even when generic SavingThrow is also present", async () => {
+  const env = environment({
+    attack: { mode: "expression", die: customExpression },
+    savingThrow: { mode: "expression", die: customExpression }
+  });
+  (await env.importModule("scripts/rolls.js")).register();
+  const hook = env.hooks.get("dnd5e.preRollV2");
+  const death = { hookNames: ["deathSave", "SavingThrow", "d20Test"], rolls: [{ options: { target: 10 } }] };
+  hook(death, {}, {});
+  assert.deepEqual(death.rolls[0].options, { target: 10 });
+  env.context.game.user.isGM = true;
+  const gm = { hookNames: ["attack"], rolls: [{ options: {} }] };
+  hook(gm, {}, {});
+  assert.deepEqual(gm.rolls[0].options, {});
+});
+
+test("saving expressions preserves their mode and disabled overrides; malformed input never replaces settings", async () => {
+  const env = environment();
+  (await env.importModule("scripts/rolls.js")).register();
+  const { RollsForm } = await env.importModule("scripts/forms/rolls-form.js");
+  await RollsForm.submit({}, {}, { object: {
+    "rolls.weaponTypeOverridesEnabled": false,
+    "rolls.attack.mode": "expression",
+    "rolls.attack.die": customExpression,
+    "rolls.weaponTypes.simpleM.mode": "expression",
+    "rolls.weaponTypes.simpleM.die": "pending invalid expression @data"
+  } });
+  const saved = env.settings.get("rolls");
+  assert.equal(saved.attack.mode, "expression");
+  assert.equal(saved.attack.die, customExpression);
+  assert.equal(saved.weaponTypes.simpleM.die, "pending invalid expression @data");
+  const context = await new RollsForm()._prepareContext();
+  assert.equal(context.rolls.attack.isExpression, true);
+  assert.equal(context.rolls.attack.mode, "expression");
+  let field;
+  const input = { setCustomValidity: () => {}, reportValidity: () => {} };
+  await RollsForm.submit({}, { querySelector: selector => { field = selector; return input; } }, { object: {
+    "rolls.attack.mode": "expression", "rolls.attack.die": "1d20 + @prof"
+  } });
+  assert.equal(env.settings.get("rolls"), saved);
+  assert.equal(env.errors.length, 1);
+  assert.equal(field, '[name="rolls.attack.die"]');
+});
+
+test("enabled weapon expressions override globals and legacy modes remain simple", async () => {
+  const env = environment({ weaponTypeOverridesEnabled: true, attack: { die: "1d20" }, weaponTypes: {
+    simpleM: { mode: "expression", die: customExpression }
+  } });
+  const { getAttackRollSettings, validateRollConfiguration } = await env.importModule("scripts/roll-settings.js");
+  assert.equal(getAttackRollSettings(env.settings.get("rolls"), "simpleM").mode, "expression");
+  const legacy = { attack: { die: " 2D10 " } };
+  validateRollConfiguration(legacy);
+  assert.equal(legacy.attack.die, "2d10");
+  assert.equal(legacy.attack.mode, undefined);
+  assert.throws(() => validateRollConfiguration({ attack: { die: customExpression } }), /select Expression/);
+});
+
+test("changing the form mode updates labels and hides equal-dice rules for expressions", async () => {
+  const env = environment();
+  const { RollsForm } = await env.importModule("scripts/forms/rolls-form.js");
+  const listeners = [];
+  const hidden = new Map();
+  const mode = { value: "simple", addEventListener: (event, fn) => listeners.push(fn) };
+  const input = { value: "2d10", addEventListener: () => {}, setCustomValidity: () => {} };
+  const equalOption = {};
+  const rule = { value: "equalDice", querySelector: () => equalOption, addEventListener: () => {} };
+  const label = {};
+  const group = { classList: { toggle: (name, value) => hidden.set(`bound:${name}`, value) } };
+  const hint = { classList: { toggle: (name, value) => hidden.set(`hint:${name}`, value) } };
+  const elements = new Map([
+    ["[data-roll-formula-mode]", mode], ['input[name$=".die"]', input],
+    ['select[name$=".criticalRule"]', rule], ["[data-critical-lower-bound-group]", group],
+    ["[data-roll-formula-label]", label], ["[data-roll-expression-hint]", hint]
+  ]);
+  const fieldset = { querySelector: selector => elements.get(selector) };
+  const form = new RollsForm();
+  form.element = { querySelectorAll: () => [fieldset], querySelector: () => null };
+  form._onRender({}, {});
+  assert.equal(equalOption.disabled, false);
+  assert.equal(hidden.get("hint:hidden"), true);
+  mode.value = "expression";
+  for ( const listener of listeners ) listener();
+  assert.equal(equalOption.disabled, true);
+  assert.equal(rule.value, "normal");
+  assert.equal(hidden.get("hint:hidden"), false);
+  assert.equal(label.textContent, "CUSTOM_DND5E.formula");
+});
+
+test("combat tracker initiative routes expressions through the native factory, preserving modifiers and cached rolls", async () => {
+  const env = environment({ initiative: { mode: "expression", die: customExpression } });
+  (await env.importModule("scripts/patches/d20-roll.js")).patchD20Roll();
+  (await env.importModule("scripts/patches/initiative-roll.js")).patchInitiativeRoll();
+  const configure = env.patches.get("CONFIG.Actor.documentClass.prototype.getInitiativeRollConfig").fn;
+  const construct = env.patches.get("CONFIG.Actor.documentClass.prototype.getInitiativeRoll").fn;
+  const data = { init: 4 };
+  const config = configure.call({}, () => ({ parts: ["@init"], data, options: { advantage: true } }));
+  assert.equal(config.options.customDnd5eExpression, customExpression);
+  assert.equal(config.options.customDie, undefined);
+  const original = new env.D20Roll("1d20", data, config.options);
+  const actor = { getInitiativeRollConfig: () => config };
+  const roll = construct.call(actor, () => original);
+  assert.equal(roll.constructor.name, "CustomDnd5eExpressionRoll");
+  assert.equal(roll.data, data);
+  assert.equal(roll.source, "1d20 + 1d6 + @init");
+  actor._cachedInitiativeRoll = roll;
+  assert.equal(construct.call(actor, () => original), original);
+});
+
+test("initiative expressions leave fixed scores, explicit message modes and GM rolls native", async () => {
+  const env = environment({ initiative: { mode: "expression", die: customExpression, rollMode: "blindroll" } });
+  (await env.importModule("scripts/patches/d20-roll.js")).patchD20Roll();
+  (await env.importModule("scripts/patches/initiative-roll.js")).patchInitiativeRoll();
+  const configure = env.patches.get("CONFIG.Actor.documentClass.prototype.getInitiativeRollConfig").fn;
+  const fixed = { options: { fixed: 12 } };
+  assert.equal(configure.call({}, () => fixed), fixed);
+  assert.equal(fixed.options.customDnd5eExpression, undefined);
+  const display = env.patches.get("CONFIG.Combat.documentClass.prototype.rollInitiative").fn;
+  const combat = { combatants: new Map([["id", { hidden: false }]]) };
+  const wrapped = (ids, options) => options;
+  assert.equal(display.call(combat, wrapped, ["id"], {}).messageMode, "blindroll");
+  const explicit = { messageMode: "publicroll" };
+  assert.equal(display.call(combat, wrapped, ["id"], explicit), explicit);
+  env.context.game.user.isGM = true;
+  const original = { options: {} };
+  assert.equal(configure.call({}, () => original), original);
+  assert.equal(original.options.customDnd5eExpression, undefined);
+  const gmOptions = {};
+  assert.equal(display.call(combat, wrapped, ["id"], gmOptions), gmOptions);
 });
 
 async function ruler(token, units = "ft") {

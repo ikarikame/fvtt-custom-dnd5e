@@ -45,5 +45,23 @@ export function validateExpressionFormula(value, RollClass = foundry.dice.Roll) 
   if ( depth !== 0 ) throw new Error("Unbalanced parentheses.");
   if ( dice === 0 ) throw new Error("The expression must contain at least one die.");
   if ( !RollClass.validate(formula) ) throw new Error("Foundry could not parse this expression.");
+  if ( RollClass.parse && RollClass.fromTerms ) validateDivisors(RollClass.parse(formula), RollClass);
   return formula;
+}
+
+/**
+ * Reject known zero denominators using native deterministic evaluation only; never roll validation dice.
+ * Random denominators are checked for finite results at runtime.
+ * @param {object[]} terms
+ * @param {typeof Roll} RollClass
+ */
+function validateDivisors(terms, RollClass) {
+  for ( const [index, term] of terms.entries() ) {
+    if ( typeof term.term === "string" ) validateDivisors(RollClass.parse(term.term), RollClass);
+    if ( term.operator !== "/" || !terms[index + 1] ) continue;
+    const divisor = RollClass.fromTerms([terms[index + 1]]);
+    if ( divisor.isDeterministic && divisor.evaluateSync().total === 0 ) {
+      throw new Error("The expression contains a division by zero.");
+    }
+  }
 }

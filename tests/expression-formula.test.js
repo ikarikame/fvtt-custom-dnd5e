@@ -36,6 +36,25 @@ test("expression resource limits reject excessive dice, faces, constants, nestin
   }
 });
 
+test("zero denominators are rejected using deterministic native terms without evaluating random divisors", () => {
+  let evaluations = 0;
+  const parser = {
+    validate: () => true,
+    parse(value) {
+      if ( value === "1d20 / (1 - 1)" ) return [{}, { operator: "/" }, { term: "1 - 1", fixed: true }];
+      if ( value === "1d20 / 1d2" ) return [{}, { operator: "/" }, { fixed: false }];
+      return [];
+    },
+    fromTerms([term]) {
+      return { isDeterministic: term.fixed, evaluateSync() { evaluations++; return { total: 0 }; } };
+    }
+  };
+  assert.throws(() => validateExpressionFormula("1d20 / (1 - 1)", parser), /division by zero/);
+  assert.equal(evaluations, 1);
+  validateExpressionFormula("1d20 / 1d2", parser);
+  assert.equal(evaluations, 1);
+});
+
 test("the proposed expression really spans integer natural values 1 through 20", () => {
   // Enumerate the mathematical contract, not a replacement for Foundry evaluation.
   const counts = new Map();
@@ -54,6 +73,20 @@ test("the proposed expression really spans integer natural values 1 through 20",
 });
 
 test("prototype import is inert; registration is additive and the factory preserves metadata", async () => {
+  const errors = [];
+  class CoreRoll {
+    static nextTotal = 17;
+
+    static validate() { return true; }
+
+    constructor(source) { this.source = source; this.dice = [{ faces: 2 }, { faces: 10 }]; }
+
+    async evaluate(options) { this.evaluationOptions = options; this.total = CoreRoll.nextTotal; return this; }
+
+    toJSON() { return { source: this.source, total: this.total, dice: this.dice }; }
+
+    static fromData(data) { return Object.assign(new this(data.source), data); }
+  }
   class NativeDie {
     constructor({ number = 1, faces = 20, options = {} } = {}) {
       Object.assign(this, { number, faces, options, results: [] });
@@ -68,7 +101,12 @@ test("prototype import is inert; registration is additive and the factory preser
     resetFormula() {}
   }
   const config = { Dice: { D20Die: NativeDie, D20Roll: NativeRoll, termTypes: {}, rolls: [] } };
-  const context = createContext({ CONFIG: config, foundry: { dice: { Roll: parserBoundary } } });
+  const context = createContext({
+    CONFIG: config,
+    foundry: { dice: { Roll: CoreRoll } },
+    ui: { notifications: { error: message => errors.push(message) } },
+    game: { i18n: { format: (key, data) => data.error } }
+  });
   const root = fileURLToPath(new URL("../", import.meta.url));
   const cache = new Map();
   const load = path => {
@@ -87,7 +125,8 @@ test("prototype import is inert; registration is additive and the factory preser
   assert.equal(module.namespace.registerExpressionPrototype().RollClass, RollClass);
   assert.equal(config.Dice.rolls.length, 1);
   const options = { advantageMode: -1, target: 16, criticalSuccess: 19 };
-  const roll = RollClass.fromExpression(formula, options, ["3"]);
+  const data = { proficiency: 4 };
+  const roll = RollClass.fromExpression(formula, options, ["3"], data);
   assert.ok(roll instanceof NativeRoll);
   assert.ok(roll.terms[0] instanceof NativeDie);
   assert.equal(roll.source, "1d20 - 1d6 + 3");
@@ -96,9 +135,20 @@ test("prototype import is inert; registration is additive and the factory preser
   assert.equal(roll.terms[0].options.criticalFailure, 1);
   assert.equal(roll.terms[0].options.target, 16);
   assert.equal(roll.options.advantageMode, -1);
+  assert.equal(roll.data, data);
   assert.equal(RollClass.fromExpression(formula, { advantage: true, disadvantage: true }).source, "1d20");
   const unsupported = [{ halflingLucky: true }, { reliableTalent: true }, { elvenAccuracy: true }, { minimum: 10 }];
   for ( const options of unsupported ) {
     assert.throws(() => RollClass.fromExpression(formula, options), /no defined behavior/);
   }
+  await roll.terms[0]._evaluate({});
+  assert.equal(roll.terms[0].results[0].result, 17);
+  assert.equal(roll.terms[0].expressionRoll.evaluationOptions.allowInteractive, false);
+  const serialized = JSON.parse(JSON.stringify(roll.terms[0].options));
+  const restored = new DieClass({ options: serialized });
+  assert.equal(restored.expressionRoll.total, 17);
+  assert.equal(restored.expressionRoll.dice[1].faces, 10);
+  CoreRoll.nextTotal = Infinity;
+  await assert.rejects(() => roll.terms[0]._evaluate({}), /non-finite/);
+  assert.equal(errors.length, 1);
 });

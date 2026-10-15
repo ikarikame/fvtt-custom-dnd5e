@@ -1,0 +1,19 @@
+<div class="form-group">
+    <label>{{localize "CUSTOM_DND5E.rolls.formulaMode.label"}}</label>
+    <div class="form-fields">
+        <select name="{{prefix}}{{#if key}}.{{key}}{{/if}}.mode" data-roll-formula-mode>
+            {{selectOptions selects.formulaMode.choices selected=roll.mode localize=true}}
+        </select>
+    </div>
+</div>
+<div class="form-group">
+    <label data-roll-formula-label>
+        {{#if roll.isExpression}}{{localize "CUSTOM_DND5E.formula"}}{{else}}{{localize "CUSTOM_DND5E.die"}}{{/if}}
+    </label>
+    <div class="form-fields">
+        <input name="{{prefix}}{{#if key}}.{{key}}{{/if}}.die" type="text" value="{{roll.die}}" maxlength="512">
+    </div>
+    <p class="hint {{#unless roll.isExpression}}hidden{{/unless}}" data-roll-expression-hint>
+        {{localize "CUSTOM_DND5E.rolls.expression.hint"}}
+    </p>
+</div>

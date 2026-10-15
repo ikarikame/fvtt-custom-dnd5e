@@ -457,6 +457,15 @@ For help and advice on interface settings, either click the info buttons in the 
 
 Customize the base die and roll mode for Ability Checks, Attack Rolls, Concentration Saving Throws, Initiative Rolls, Saving Throws, Skills Checks and Tool Checks.
 
+### Fork additions
+
+- **Enable weapon type overrides:** turn this off to use the main attack settings for every weapon, including die, roll mode and critical rules. Existing override values are retained. Older saved configurations keep overrides enabled until you turn them off.
+- **Base Roll:** choose **Simple Die** for an `NdM` die, or **Expression** for arithmetic such as `10.5 + (2 * 1d2 - 3) * (2d10kh - 0.5)`.
+- In Expression mode, advantage adds `1d6` and disadvantage subtracts `1d6`. Character modifiers remain separate. Attacks use the expression's natural result for critical thresholds, never the bonus d6. Checks retain native DC-based outcomes; death saves remain native.
+- Expressions support numbers, `+ - * /`, parentheses, standard `NdM` dice and `kh`/`kl`. Limits: 512 characters, 16 nested parentheses, 50 dice and 1000 faces per die. References (`@...`), functions, pools, rerolls and exploding dice are not supported.
+- Expression mode currently supports digital dice only. Halfling Lucky, Reliable Talent, Elven Accuracy and minimum/maximum die adjustments are rejected explicitly rather than guessed. These limitations do not affect Simple Die mode.
+- Custom roll settings do not apply to rolls made by the GM.
+
 <details>
     <summary>See Video</summary>
 

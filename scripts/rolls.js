@@ -2,7 +2,8 @@ import { CONSTANTS } from "./constants.js";
 import { clampAttackCriticalLowerBound } from "./critical-rules.js";
 import { c5eLoadTemplates, getDieParts, getSetting, registerMenu, registerSetting } from "./utils.js";
 import { RollsForm } from "./forms/rolls-form.js";
-import { areWeaponOverridesEnabled, getAttackRollSettings } from "./roll-settings.js";
+import { areWeaponOverridesEnabled, getAttackRollSettings, isExpressionRoll } from "./roll-settings.js";
+import { validateExpressionFormula } from "./dice/expression-formula.js";
 
 const constants = CONSTANTS.ROLLS;
 
@@ -13,7 +14,7 @@ export function register() {
   registerSettings();
   registerHooks();
 
-  const templates = [constants.TEMPLATE.FORM];
+  const templates = [constants.TEMPLATE.FORM, "modules/custom-dnd5e/templates/roll-die-fields.hbs"];
   c5eLoadTemplates(templates);
 }
 
@@ -65,6 +66,8 @@ function registerSettings() {
 function registerHooks() {
   Hooks.on("dnd5e.preRollV2", (config, dialog, message) => {
     const hookNames = config.hookNames;
+    // D&D also emits SavingThrow for death saves; their dedicated natural-1/20 rules stay native.
+    if ( hookNames.includes("deathSave") || config.saveType === "death" ) return;
     const rolls = getSetting(constants.SETTING.ROLLS.KEY);
 
     let roll = null;
@@ -95,13 +98,29 @@ function registerHooks() {
 
     if ( !roll || game.user.isGM ) return;
 
-    const dieParts = getDieParts(roll.die);
+    const expression = isExpressionRoll(roll);
+    let formula;
+    if ( expression ) {
+      try {
+        formula = validateExpressionFormula(roll.die);
+      } catch (error) {
+        ui.notifications.error(game.i18n.format("CUSTOM_DND5E.rolls.expression.error", { error: error.message }));
+        return false;
+      }
+    }
+    const dieParts = expression ? null : getDieParts(roll.die);
     for ( const rollConfig of config.rolls ?? [] ) {
       const options = rollConfig.options ??= {};
-      if ( roll.die !== "1d20" && dieParts ) {
-        options.customDie = roll.die;
-        options.criticalSuccess = dieParts.number * dieParts.faces;
-        options.criticalFailure = dieParts.number;
+      if ( expression ) {
+        delete options.customDie;
+        options.customDnd5eExpression = formula;
+      } else {
+        delete options.customDnd5eExpression;
+        if ( roll.die !== "1d20" && dieParts ) {
+          options.customDie = roll.die;
+          options.criticalSuccess = dieParts.number * dieParts.faces;
+          options.criticalFailure = dieParts.number;
+        }
       }
 
       // Apply custom windows after assigning the base die's critical thresholds.
@@ -175,16 +194,15 @@ export function isCustomRoll() {
   if ( !rolls ) return false;
 
   const customRolls = [
-    rolls.ability?.die,
-    rolls.attack?.die,
-    rolls.concentration?.die,
-    rolls.initiative?.die,
-    rolls.savingThrow?.die,
-    rolls.skill?.die,
-    rolls.tool?.die,
+    rolls.ability,
+    rolls.attack,
+    rolls.concentration,
+    rolls.initiative,
+    rolls.savingThrow,
+    rolls.skill,
+    rolls.tool,
     ...Object.values(areWeaponOverridesEnabled(rolls) ? (rolls.weaponTypes ?? {}) : {})
-      .map(weaponType => weaponType?.die)
   ];
 
-  return customRolls.some(die => die && die !== "1d20");
+  return customRolls.some(setting => isExpressionRoll(setting) || (setting?.die && setting.die !== "1d20"));
 }

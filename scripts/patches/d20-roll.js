@@ -7,11 +7,14 @@ import {
   isWindowCriticalRoll
 } from "../critical-rules.js";
 import { isCustomRoll } from "../rolls.js";
+import { registerExpressionRolls } from "../dice/expression-roll.js";
 
 /**
  * Patch the D20Roll to apply custom roll settings.
  */
 export function patchD20Roll() {
+  // Stored expression messages must deserialize even after custom formulas have been disabled.
+  registerExpressionRolls();
   if ( !isCustomRoll() ) return;
 
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.fromConfig", fromConfigPatch, "WRAPPER");
@@ -78,6 +81,16 @@ async function prepareChatRenderContextPatch(wrapped, options = {}) {
  */
 function fromConfigPatch(wrapped, config, process) {
   const roll = wrapped(config, process);
+  if ( config.options?.customDnd5eExpression ) {
+    try {
+      const { RollClass } = registerExpressionRolls();
+      return RollClass.fromExpression(config.options.customDnd5eExpression,
+        { ...roll.options, ...config.options }, config.parts ?? [], config.data ?? {});
+    } catch (error) {
+      ui.notifications.error(game.i18n.format("CUSTOM_DND5E.rolls.expression.error", { error: error.message }));
+      throw error;
+    }
+  }
   const customDie = config.options?.customDie;
   if ( !customDie ) return roll;
 

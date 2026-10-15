@@ -1,5 +1,7 @@
 import { CONSTANTS, MODULE } from "../constants.js";
 import { getDieParts, getSetting } from "../utils.js";
+import { isExpressionRoll } from "../roll-settings.js";
+import { validateExpressionFormula } from "../dice/expression-formula.js";
 
 const ROLL_MODES = ["publicroll", "gmroll", "blindroll", "selfroll"];
 
@@ -49,8 +51,8 @@ function getInitiativeSettings() {
  * @returns {boolean} Whether a custom initiative die is configured
  */
 function hasCustomInitiativeDie() {
-  const die = getInitiativeSettings()?.die;
-  return !!getDieParts(die) && die !== "1d20";
+  const setting = getInitiativeSettings();
+  return isExpressionRoll(setting) || (!!getDieParts(setting?.die) && setting.die !== "1d20");
 }
 
 /* -------------------------------------------- */
@@ -73,9 +75,21 @@ function hasCustomInitiativeRollMode() {
  */
 function getInitiativeRollConfigPatch(wrapped, options = {}) {
   const config = wrapped(options);
-  if ( !config ) return config;
+  if ( !config || game.user.isGM || config.options?.fixed !== undefined ) return config;
 
   const initiative = getInitiativeSettings();
+  if ( isExpressionRoll(initiative) ) {
+    try {
+      const expression = validateExpressionFormula(initiative.die);
+      config.options ??= {};
+      delete config.options.customDie;
+      config.options.customDnd5eExpression = expression;
+    } catch (error) {
+      ui.notifications.error(game.i18n.format("CUSTOM_DND5E.rolls.expression.error", { error: error.message }));
+      throw error;
+    }
+    return config;
+  }
   const dieParts = getDieParts(initiative?.die);
   if ( !dieParts || initiative.die === "1d20" ) return config;
 
@@ -96,9 +110,12 @@ function getInitiativeRollConfigPatch(wrapped, options = {}) {
  */
 function getInitiativeRollPatch(wrapped, options = {}) {
   const roll = wrapped(options);
-  if ( this._cachedInitiativeRoll || !(roll instanceof CONFIG.Dice.D20Roll) ) return roll;
+  if ( game.user.isGM || this._cachedInitiativeRoll || !(roll instanceof CONFIG.Dice.D20Roll) ) return roll;
 
   const config = this.getInitiativeRollConfig(options);
+  if ( config?.options?.customDnd5eExpression && config.options.fixed === undefined ) {
+    return CONFIG.Dice.D20Roll.fromConfig(config, {});
+  }
   const customDie = config?.options?.customDie;
   if ( !customDie || config.options.fixed !== undefined ) return roll;
 
@@ -116,6 +133,7 @@ function getInitiativeRollPatch(wrapped, options = {}) {
  * @returns {Promise<Combat>} Combat
  */
 function rollInitiativePatch(wrapped, ids, options = {}) {
+  if ( game.user.isGM ) return wrapped(ids, options);
   const rollMode = getInitiativeSettings()?.rollMode;
   const hasExplicitMode = options.messageMode !== undefined || options.messageOptions?.rollMode !== undefined;
   if ( !ROLL_MODES.includes(rollMode) || hasExplicitMode ) return wrapped(ids, options);
