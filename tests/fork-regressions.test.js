@@ -21,6 +21,10 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
 
     get isValid() { return this.faces === 20; }
 
+    get values() { return this.results.filter(result => result.active !== false).map(result => result.result); }
+
+    get total() { return this.values.reduce((sum, value) => sum + value, 0); }
+
     applyAdvantage(mode) {
       this.options.advantageMode = mode;
       this.number = mode === 0 ? 1 : 2;
@@ -31,6 +35,7 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
 
     constructor(formula, data, options = {}) {
       this.options = options;
+      this._evaluated = false;
       this.data = data;
       const [, number, faces] = formula.match(/(\d+)d(\d+)/);
       this.d20 = new Die({ number: Number(number), faces: Number(faces) });
@@ -49,12 +54,41 @@ function environment(rolls = { attack: { die: "2d10", rollMode: "default" } }) {
 
     get validD20Roll() { return this.d20.isValid; }
 
-    get isCritical() { return this.d20.results.some(r => r.result >= 20); }
+    get isCritical() { return this.d20.total >= (this.options.criticalSuccess ?? 20); }
+
+    get isFumble() { return this.d20.total <= (this.options.criticalFailure ?? 1); }
+
+    get total() { return this._total ?? this.d20.total; }
+
+    get isSuccess() { return this.total >= this.options.target; }
+
+    // Boundary double for the 6.0.6 renderer's early return on multi-value challenge dice.
+    async _prepareChatRenderContext(options = {}) {
+      const context = { classes: "", icons: [], isPrivate: options.isPrivate, total: this.total };
+      if ( options.isPrivate || !this._evaluated || !this.validD20Roll ) return context;
+      context.d20 = this.d20;
+      if ( this.d20.values.length !== 1 ) return context;
+      const classes = [];
+      if ( this.d20.options.target && options.displayResult ) {
+        classes.push(this.isSuccess || options.forceSuccess ? "success" : "failure");
+      }
+      if ( options.canCrit && this.isCritical ) classes.push("critical");
+      if ( options.canCrit && this.isFumble && !options.forceSuccess ) classes.push("fumble");
+      context.classes = classes.join(" ");
+      if ( classes.includes("critical") ) context.icons = ["fa-check", "fa-check"];
+      else if ( classes.includes("fumble") ) context.icons = ["fa-xmark", "fa-xmark"];
+      else if ( classes.includes("success") ) context.icons = ["fa-check"];
+      else if ( classes.includes("failure") ) context.icons = ["fa-xmark"];
+      return context;
+    }
 
     configureModifiers() {
       if ( !this.validD20Roll ) return;
       this.options.advantageMode ??= this.options.advantage ? 1 : this.options.disadvantage ? -1 : 0;
       this.d20.applyAdvantage(this.options.advantageMode);
+      for ( const key of ["criticalSuccess", "criticalFailure", "target"] ) {
+        if ( this.options[key] !== undefined ) this.d20.options[key] = this.options[key];
+      }
       this.options.configured = true;
     }
 
@@ -203,30 +237,113 @@ test("critical helpers clamp legacy values and reject equal-dice rules for other
   }), false);
 });
 
-test("chat highlights alternative criticals without duplicating icons on rerender", async () => {
-  const env = environment();
-  (await env.importModule("scripts/rolls.js")).register();
-  const classes = new Set(["failure", "fumble"]);
-  const total = {
-    children: [],
-    classList: {
-      add: (...values) => values.forEach(value => classes.add(value)),
-      remove: (...values) => values.forEach(value => classes.delete(value))
-    },
-    querySelector() { return this.children[0]; },
-    append(child) { this.children.push(child); }
-  };
-  env.context.document = { createElement: () => ({ classList: { add: () => {} }, append: () => {} }) };
-  const root = { querySelectorAll: () => [total] };
-  const message = { rolls: [{
-    options: { customDie: "2d10", customDnd5eCriticalRule: "equalDice" },
-    d20: { results: [{ result: 7 }, { result: 7 }] }
-  }] };
-  const highlight = env.hooks.get("renderChatMessageHTML");
-  highlight(message, root);
-  highlight(message, root);
-  assert.deepEqual([...classes].sort(), ["critical", "success"]);
-  assert.equal(total.children.length, 1);
+async function evaluatedCustomRoll(options, results, total) {
+  const { D20Roll } = await patchedRolls();
+  const roll = D20Roll.fromConfig({ options: {
+    customDie: "2d10", criticalSuccess: 20, criticalFailure: 2, ...options
+  } }, {});
+  roll._evaluated = true;
+  roll.d20.results = results;
+  if ( total !== undefined ) roll._total = total;
+  return roll;
+}
+
+test("equal 9+9 attacks render native double-check icons, including on repeated renders", async () => {
+  const roll = await evaluatedCustomRoll({ customDnd5eCriticalRule: "equalDice" }, [{ result: 9 }, { result: 9 }]);
+  const before = JSON.stringify(roll.d20.results);
+  for ( let i = 0; i < 2; i++ ) {
+    const context = await roll._prepareChatRenderContext({ canCrit: true });
+    assert.equal(context.classes, "critical");
+    assert.deepEqual([...context.icons], ["fa-check", "fa-check"]);
+    assert.equal(context.d20, roll.d20, "preserve the native compact card's challenge total");
+  }
+  assert.equal(JSON.stringify(roll.d20.results), before, "rendering must not mutate the dice");
+  assert.equal(roll.isCritical, true);
+});
+
+test("custom critical windows and normal 2d10 criticals use native rendering", async () => {
+  for ( const options of [{ customDnd5eCriticalRule: "window", customDnd5eCriticalLowerBound: 19 }, {}] ) {
+    const roll = await evaluatedCustomRoll(options, [{ result: 10 }, { result: 10 }]);
+    const context = await roll._prepareChatRenderContext({ canCrit: true });
+    assert.equal(context.classes, "critical");
+    assert.deepEqual([...context.icons], ["fa-check", "fa-check"]);
+  }
+});
+
+test("custom checks use the total against the DC but never display critical or fumble icons", async () => {
+  for ( const target of [15, 25] ) {
+    const roll = await evaluatedCustomRoll({ target, customDnd5eCriticalRule: "equalDice" },
+      [{ result: 9 }, { result: 9 }]);
+    const context = await roll._prepareChatRenderContext({ canCrit: false, displayResult: true });
+    assert.equal(context.classes, target === 15 ? "success" : "failure");
+    assert.deepEqual([...context.icons], [target === 15 ? "fa-check" : "fa-xmark"]);
+  }
+  const fumble = await evaluatedCustomRoll({}, [{ result: 1 }, { result: 1 }]);
+  assert.equal((await fumble._prepareChatRenderContext({ canCrit: false })).classes, "");
+});
+
+test("private and unevaluated custom rolls never receive outcome icons", async () => {
+  const roll = await evaluatedCustomRoll({ customDnd5eCriticalRule: "equalDice" }, [{ result: 9 }, { result: 9 }]);
+  const hidden = await roll._prepareChatRenderContext({ canCrit: true, displayResult: true, isPrivate: true });
+  assert.equal(hidden.classes, "");
+  assert.deepEqual([...hidden.icons], []);
+  roll._evaluated = false;
+  const pending = await roll._prepareChatRenderContext({ canCrit: true });
+  assert.equal(pending.classes, "");
+  assert.deepEqual([...pending.icons], []);
+});
+
+test("1+1 equal-dice attacks display critical success, not conflicting fumble icons", async () => {
+  const roll = await evaluatedCustomRoll({ customDnd5eCriticalRule: "equalDice" }, [{ result: 1 }, { result: 1 }]);
+  const context = await roll._prepareChatRenderContext({ canCrit: true });
+  assert.equal(context.classes, "critical");
+  assert.deepEqual([...context.icons], ["fa-check", "fa-check"]);
+});
+
+test("normal multi-die fumbles render natively, with forceSuccess and visibility respected", async () => {
+  const roll = await evaluatedCustomRoll({ target: 15 }, [{ result: 1 }, { result: 1 }]);
+  const context = await roll._prepareChatRenderContext({ canCrit: true, displayResult: true });
+  assert.equal(context.classes, "failure fumble");
+  assert.deepEqual([...context.icons], ["fa-xmark", "fa-xmark"]);
+  const forced = await roll._prepareChatRenderContext({ canCrit: true, displayResult: true, forceSuccess: true });
+  assert.equal(forced.classes, "success");
+  assert.deepEqual([...forced.icons], ["fa-check"]);
+  const hiddenDC = await roll._prepareChatRenderContext({ canCrit: false, displayResult: false });
+  assert.equal(hiddenDC.classes, "");
+  assert.deepEqual([...hiddenDC.icons], []);
+});
+
+test("native exclusions for margin and success-count dice remain untouched", async () => {
+  for ( const flag of ["marginSuccess", "marginFailure", "successCount"] ) {
+    const roll = await evaluatedCustomRoll({ customDnd5eCriticalRule: "equalDice" }, [{ result: 9 }, { result: 9 }]);
+    if ( flag === "successCount" ) roll.d20.results[0].success = true;
+    else roll.d20.options[flag] = true;
+    const context = await roll._prepareChatRenderContext({ canCrit: true });
+    assert.equal(context.classes, "");
+    assert.deepEqual([...context.icons], []);
+  }
+});
+
+test("bonus d6 affects the DC comparison but not the critical window", async () => {
+  const roll = await evaluatedCustomRoll({
+    advantageMode: 1, target: 20, customDnd5eCriticalRule: "window", customDnd5eCriticalLowerBound: 19
+  }, [{ result: 9 }, { result: 9 }], 24);
+  const context = await roll._prepareChatRenderContext({ canCrit: true, displayResult: true });
+  assert.equal(context.classes, "success");
+  assert.deepEqual([...context.icons], ["fa-check"]);
+  assert.equal(roll.isCritical, false);
+});
+
+test("single active result and standard d20 cards continue to use native rendering", async () => {
+  const roll = await evaluatedCustomRoll({ customDie: "1d12", criticalSuccess: 12 }, [{ result: 12 }]);
+  const context = await roll._prepareChatRenderContext({ canCrit: true });
+  assert.equal(context.classes, "critical");
+  assert.deepEqual([...context.icons], ["fa-check", "fa-check"]);
+  const { D20Roll } = await patchedRolls();
+  const standard = D20Roll.fromConfig({ options: {} }, {});
+  standard._evaluated = true;
+  standard.d20.results = [{ result: 20 }];
+  assert.equal((await standard._prepareChatRenderContext({ canCrit: true })).classes, "critical");
 });
 
 test("player attacks receive house rules; GM attacks keep the original configuration", async () => {

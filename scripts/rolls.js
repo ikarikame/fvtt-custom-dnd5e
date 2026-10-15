@@ -1,5 +1,5 @@
 import { CONSTANTS } from "./constants.js";
-import { clampAttackCriticalLowerBound, isEqualDiceCriticalRoll, isWindowCriticalRoll } from "./critical-rules.js";
+import { clampAttackCriticalLowerBound } from "./critical-rules.js";
 import { c5eLoadTemplates, getDieParts, getSetting, registerMenu, registerSetting } from "./utils.js";
 import { RollsForm } from "./forms/rolls-form.js";
 import { areWeaponOverridesEnabled, getAttackRollSettings } from "./roll-settings.js";
@@ -115,9 +115,6 @@ function registerHooks() {
       message.rollMode = roll.rollMode;
     }
   });
-
-  Hooks.on("renderChatMessage", highlightAlternativeCriticalChat);
-  Hooks.on("renderChatMessageHTML", highlightAlternativeCriticalChat);
 }
 
 /* -------------------------------------------- */
@@ -163,78 +160,6 @@ function applyAttackCriticalRule(options, rollSettings, dieParts) {
     delete options.customDnd5eCriticalRule;
     delete options.customDnd5eCriticalLowerBound;
   }
-}
-
-/* -------------------------------------------- */
-
-/**
- * Highlight attack rolls in chat when using alternative 2d10 critical rules.
- * @param {ChatMessage} message The chat message
- * @param {HTMLElement|jQuery} html The rendered HTML
- */
-function highlightAlternativeCriticalChat(message, html) {
-  const rolls = message?.rolls ?? [];
-  if ( !rolls.length ) return;
-
-  const criticalRollIndices = [];
-  for ( const [index, roll] of rolls.entries() ) {
-    if ( !isAlternativeCriticalRoll(roll) ) continue;
-    criticalRollIndices.push(index);
-  }
-
-  if ( !criticalRollIndices.length ) return;
-
-  const root = html?.[0] ?? html;
-  if ( !root?.querySelectorAll ) return;
-
-  const totals = Array.from(root.querySelectorAll(".dice-roll .dice-total"));
-  for ( const rollIndex of criticalRollIndices ) {
-    const total = totals[rollIndex];
-    if ( !total ) continue;
-    total.classList.add("success", "critical");
-    total.classList.remove("failure", "fumble");
-    injectCriticalIcons(total);
-  }
-}
-
-/* -------------------------------------------- */
-
-/**
- * Whether a roll qualifies as an alternative 2d10 critical.
- * @param {object} roll The roll
- * @returns {boolean} Whether the roll is an alternative critical
- */
-function isAlternativeCriticalRoll(roll) {
-  const rule = roll?.options?.customDnd5eCriticalRule;
-  if ( !["equalDice", "window"].includes(rule) ) return false;
-
-  if ( rule === "equalDice" ) {
-    return isEqualDiceCriticalRoll(roll);
-  }
-
-  return isWindowCriticalRoll(roll);
-}
-
-/* -------------------------------------------- */
-
-/**
- * Inject critical icons into a chat roll total if they are missing.
- * @param {HTMLElement} total The dice total element
- */
-function injectCriticalIcons(total) {
-  if ( total.querySelector(".icons, .fa-check-double, .fa-check") ) return;
-
-  const icons = document.createElement("span");
-  icons.classList.add("icons", `${CONSTANTS.ROLLS.ID}-critical-icons`);
-
-  const first = document.createElement("i");
-  first.classList.add("fas", "fa-check");
-
-  const second = document.createElement("i");
-  second.classList.add("fas", "fa-check");
-
-  icons.append(first, second);
-  total.append(icons);
 }
 
 /* -------------------------------------------- */

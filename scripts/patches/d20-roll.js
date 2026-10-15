@@ -17,7 +17,54 @@ export function patchD20Roll() {
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.fromConfig", fromConfigPatch, "WRAPPER");
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.prototype.configureModifiers", configureModifiersPatch, "WRAPPER");
   libWrapper.register(MODULE.ID, "CONFIG.Dice.D20Roll.prototype.validD20Roll", validD20RollPatch, "OVERRIDE");
+  libWrapper.register(
+    MODULE.ID,
+    "CONFIG.Dice.D20Roll.prototype._prepareChatRenderContext",
+    prepareChatRenderContextPatch,
+    "WRAPPER"
+  );
   patchIsCriticalGetter();
+}
+
+/* -------------------------------------------- */
+
+/**
+ * Restore native outcome styling for custom multi-die challenge rolls.
+ * D&D's renderer otherwise stops when the primary term has more than one active value.
+ * Let the message's canCrit flag decide whether criticals are displayed, and never reveal private rolls.
+ * @param {Function} wrapped
+ * @param {object} [options={}]
+ * @returns {Promise<object>}
+ */
+async function prepareChatRenderContextPatch(wrapped, options = {}) {
+  const context = await wrapped(options);
+  if ( !this.options.customDie || options.isPrivate || context.isPrivate || !this._evaluated
+    || !this.validD20Roll ) return context;
+
+  const die = this.d20;
+  if ( !die?.results?.length || die.values.length <= 1 ) return context;
+  // Preserve the native exclusions for dice using success-counting or margin modifiers.
+  if ( ("success" in die.results[0]) || die.options.marginSuccess || die.options.marginFailure ) return context;
+
+  const classes = new Set((context.classes ?? "").split(/\s+/).filter(Boolean));
+  for ( const name of ["success", "failure", "critical", "fumble"] ) classes.delete(name);
+  if ( die.options.target && options.displayResult ) {
+    classes.add(this.isSuccess || options.forceSuccess ? "success" : "failure");
+  }
+  const critical = options.canCrit && this.isCritical;
+  if ( critical ) classes.add("critical");
+  // Equal-dice rules can make 1+1 a critical: give critical success precedence in the card as in attack resolution.
+  if ( options.canCrit && !critical && this.isFumble && !options.forceSuccess ) classes.add("fumble");
+
+  let icons = [];
+  if ( classes.has("critical") ) icons = ["fa-check", "fa-check"];
+  else if ( classes.has("fumble") ) icons = ["fa-xmark", "fa-xmark"];
+  else if ( classes.has("success") ) icons = ["fa-check"];
+  else if ( classes.has("failure") ) icons = ["fa-xmark"];
+  const extraIcons = (context.icons ?? []).filter(icon => !["fa-check", "fa-xmark"].includes(icon));
+  context.classes = [...classes].join(" ");
+  context.icons = [...icons, ...extraIcons];
+  return context;
 }
 
 /* -------------------------------------------- */
@@ -236,7 +283,7 @@ function isAlternative2d10Critical(roll) {
 function meets2d10CriticalWindow(roll) {
   const activeResults = getActiveD20Results(roll);
   if ( activeResults.length !== 2 ) return false;
-  // Window crits in this patch remain 2d10-only; generic window handling for chat/UI lives in scripts/rolls.js.
+  // Other dice use the native criticalSuccess threshold; 2d10 needs its aggregate natural result.
   if ( !is2d10DieFormula(roll?.options?.customDie) ) return false;
   const threshold = clampAttackCriticalLowerBound(roll?.options?.customDnd5eCriticalLowerBound);
   if ( roll?.options ) roll.options.customDnd5eCriticalLowerBound = threshold;
