@@ -2,18 +2,22 @@
   "id": "custom-dnd5e",
   "title": "Custom D&D 5e",
   "description": "A Foundry VTT utility to customise the D&D 5e system",
-  "version": "5.6.0",
+  "version": "5.6.0.1",
   "library": false,
   "socket": true,
   "compatibility": {
     "minimum": 14.367,
-    "verified": 14.368,
+    "verified": 14.369,
     "maximum": 14.999
   },
   "authors": [
     {
       "name": "Larkinabout",
       "url": "https://github.com/Larkinabout"
+    },
+    {
+      "name": "ikarikame",
+      "url": "https://github.com/ikarikame"
     }
   ],
   "esmodules": [
@@ -106,7 +110,7 @@
         "id": "dnd5e",
         "compatibility":{
           "minimum": "6.0.0",
-          "verified": "6.0.5",
+          "verified": "6.0.6",
           "maximum": "6.99"
         }
       }
@@ -118,8 +122,8 @@
       }
     ]
   },
-  "url": "This is auto replaced",
-  "manifest": "This is auto replaced",
-  "download": "This is auto replaced",
-  "readme": "https://github.com/Larkinabout/fvtt-custom-dnd5e#readme"
+  "url": "https://github.com/ikarikame/fvtt-custom-dnd5e",
+  "manifest": "https://github.com/ikarikame/fvtt-custom-dnd5e/releases/latest/download/module.json",
+  "download": "https://github.com/ikarikame/fvtt-custom-dnd5e/releases/download/5.6.0.1/module.zip",
+  "readme": "https://github.com/ikarikame/fvtt-custom-dnd5e#readme"
 }
